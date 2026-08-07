@@ -1,0 +1,32 @@
+/* 全局基础样式 - main.css */
+
+html {
+  box-sizing: border-box;
+  -webkit-text-size-adjust: 100%;
+}
+
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #f0ebe0;
+  font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  color: #2c2416;
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 全局最大宽度容器（手机居中） */
+#app {
+  min-height: 100dvh;
+  background: #f0ebe0;
+}
+
+/* 禁用 iOS 上的橡皮筋效果 */
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
