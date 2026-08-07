@@ -29,6 +29,8 @@
           :key="i"
           class="nb-suggestion-item"
           :class="{ 'nb-suggestion-item--last': i === searchSuggestions.length - 1 }"
+          @mousedown.prevent="selectSuggestion(item)"
+          @touchstart.prevent="selectSuggestion(item)"
           @click="selectSuggestion(item)"
         >
           <div class="nb-suggestion-left">
@@ -53,7 +55,7 @@
       </span>
     </div>
 
-    <!-- 单词本翻页（用 CSS scroll-snap 代替 swiper） -->
+    <!-- 单词本翻页（CSS scroll-snap 单页强停靠） -->
     <div class="nb-swiper-wrap" ref="swiperWrap" @scroll.passive="onScroll">
       <div
         class="nb-swiper-inner"
@@ -68,7 +70,7 @@
             <!-- 纸张顶部分割线 -->
             <div class="nb-paper-top-rule"></div>
 
-            <!-- 16 个单词格 -->
+            <!-- 16 个单词格 (Flex 1/16 均匀打满全屏) -->
             <div
               v-for="slotIdx in 16"
               :key="slotIdx"
@@ -213,7 +215,6 @@ const deletingWord = ref('')
 // ── 初始化 ──────────────────────────────────────────
 onMounted(() => {
   store.init()
-  // 检查是否有从统计页传回的跳转目标
   nextTick(() => {
     currentPage.value = Math.max(0, store.pages.length - 1)
     scrollToPage(currentPage.value, 'instant')
@@ -434,6 +435,7 @@ function handleSearch() {
 
 function selectSuggestion(item) {
   currentPage.value = item.pageIdx
+  scrollToPage(item.pageIdx)
   highlightedSlot.value = { pageIdx: item.pageIdx, slotIdx: item.slotIdx }
   clearTimeout(highlightTimer)
   highlightTimer = setTimeout(() => { highlightedSlot.value = null }, 2500)
@@ -474,8 +476,8 @@ function goToStats() {
 .nb-search-row {
   display: flex;
   align-items: center;
-  padding: 10px 14px;
-  gap: 10px;
+  padding: 6px 12px;
+  gap: 8px;
 }
 .nb-search-inner {
   flex: 1;
@@ -483,20 +485,20 @@ function goToStats() {
   align-items: center;
   background-color: #fdfbf6;
   border-radius: 12px;
-  padding: 0 12px;
-  gap: 8px;
+  padding: 0 10px;
+  gap: 6px;
   box-shadow: 0 1px 4px rgba(44, 36, 22, 0.08);
   border: 1px solid #ddd5c0;
 }
 .nb-search-icon {
-  font-size: 22px;
+  font-size: 18px;
   color: #9b8f7a;
   flex-shrink: 0;
 }
 .nb-search-field {
   flex: 1;
-  padding: 10px 0;
-  font-size: 15px;
+  padding: 6px 0;
+  font-size: 14px;
   color: #2c2416;
   background: transparent;
   border: none;
@@ -505,19 +507,20 @@ function goToStats() {
 }
 .nb-search-field::placeholder { color: #b8a98a; }
 .nb-search-clear {
-  padding: 6px;
+  padding: 4px;
   cursor: pointer;
 }
-.nb-clear-icon { font-size: 20px; color: #9b8f7a; }
+.nb-clear-icon { font-size: 18px; color: #9b8f7a; }
 .nb-stats-btn {
   background-color: #7a5c10;
-  border-radius: 20px;
-  padding: 8px 18px;
+  border-radius: 18px;
+  padding: 6px 14px;
   cursor: pointer;
   user-select: none;
+  flex-shrink: 0;
 }
 .nb-stats-btn:active { opacity: 0.8; }
-.nb-stats-btn-text { color: #fff8e8; font-size: 14px; font-weight: 600; }
+.nb-stats-btn-text { color: #fff8e8; font-size: 13px; font-weight: 600; }
 
 /* ── 候选词 ─────────────────────────────────────────── */
 .nb-suggestions {
@@ -538,7 +541,7 @@ function goToStats() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-bottom: 1px solid #f0ebe0;
   cursor: pointer;
   transition: background-color 0.12s;
@@ -551,7 +554,7 @@ function goToStats() {
   gap: 8px;
 }
 .nb-suggestion-word {
-  font-size: 15px;
+  font-size: 14px;
   color: #2c2416;
   font-family: Georgia, serif;
 }
@@ -561,24 +564,24 @@ function goToStats() {
   gap: 3px;
 }
 .nb-suggestion-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background-color: #c0392b;
 }
 .nb-suggestion-dot-more { font-size: 11px; color: #c0392b; }
 .nb-suggestion-page { font-size: 12px; color: #9b8f7a; }
 .nb-suggestion-more {
-  padding: 10px 16px;
+  padding: 8px 14px;
   background-color: #f8f4ec;
   border-top: 1px solid #f0ebe0;
 }
-.nb-suggestion-more-text { font-size: 12px; color: #b8a98a; font-style: italic; }
+.nb-suggestion-more-text { font-size: 11px; color: #b8a98a; font-style: italic; }
 
 /* ── 页码信息栏 ─────────────────────────────────────── */
 .nb-info-bar {
   background-color: #e6e0d3;
-  padding: 5px 16px 6px;
+  padding: 3px 12px 4px;
   border-bottom: 1px solid #cfc5ae;
   flex-shrink: 0;
 }
@@ -591,6 +594,7 @@ function goToStats() {
 /* ── 翻页主体 ────────────────────────────────────────── */
 .nb-swiper-wrap {
   flex: 1;
+  min-height: 0;
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
@@ -608,36 +612,41 @@ function goToStats() {
   flex-shrink: 0;
   height: 100%;
   scroll-snap-align: start;
-  overflow-y: auto;
-  padding: 10px 12px;
+  scroll-snap-stop: always;
+  overflow: hidden;
+  padding: 6px 10px;
 }
 
-/* ── 纸张 ───────────────────────────────────────────── */
+/* ── 纸张 (Flex布局，全高铺满不滚动) ───────────────── */
 .nb-paper {
   background: linear-gradient(180deg, #fdfbf6 0%, #f8f4ec 100%);
   border-radius: 12px;
   box-shadow: 0 2px 12px rgba(44, 36, 22, 0.10), 0 0 0 1px rgba(200, 185, 155, 0.5);
   overflow: hidden;
-  min-height: calc(100% - 0px);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 .nb-paper-top-rule {
   height: 3px;
+  flex-shrink: 0;
   background: linear-gradient(90deg, #e8c97a 0%, #c4922a 50%, #e8c97a 100%);
-  margin-bottom: 2px;
 }
 .nb-paper-footer {
-  padding: 8px 0 10px;
+  padding: 2px 0 4px;
   text-align: center;
+  flex-shrink: 0;
 }
-.nb-paper-num { font-size: 13px; color: #c4b49a; letter-spacing: 2px; }
+.nb-paper-num { font-size: 11px; color: #c4b49a; letter-spacing: 2px; }
 
-/* ── 单词行 ─────────────────────────────────────────── */
+/* ── 单词行 (Flex 1/16 均匀分配高) ───────────────── */
 .nb-word-row {
+  flex: 1;
+  min-height: 0;
   display: flex;
   align-items: center;
-  padding: 0 14px;
+  padding: 0 10px;
   border-bottom: 1px solid #f0ebe0;
-  min-height: 42px;
   transition: background-color 0.3s;
 }
 .nb-word-row--highlight {
@@ -655,25 +664,25 @@ function goToStats() {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 3px;
-  width: 52px;
-  min-height: 32px;
+  gap: 2px;
+  width: 44px;
+  height: 100%;
   flex-shrink: 0;
-  padding: 4px 6px;
+  padding: 2px 4px;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: 6px;
   transition: background-color 0.15s;
 }
 .nb-circles-wrap:active { background-color: #f0ebe0; }
 .nb-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background-color: #c0392b;
 }
 .nb-dot-placeholder {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   border: 1.5px dashed #cfc5ae;
 }
@@ -683,38 +692,40 @@ function goToStats() {
   flex: 1;
   display: flex;
   align-items: center;
-  min-height: 42px;
+  height: 100%;
 }
 .nb-word-text {
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: 16px;
+  font-size: 14px;
   color: #2c2416;
   cursor: pointer;
-  padding: 4px 0;
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
-  letter-spacing: 0.3px;
+  height: 100%;
+  letter-spacing: 0.2px;
   user-select: none;
+  line-height: 1.2;
 }
 .nb-word-text:active { opacity: 0.7; }
 .nb-empty-slot {
   flex: 1;
-  min-height: 42px;
+  height: 100%;
   display: flex;
   align-items: center;
   cursor: text;
 }
 .nb-slot-mark {
-  font-size: 20px;
+  font-size: 16px;
   color: #cfc5ae;
 }
 .nb-inline-input {
   flex: 1;
   width: 100%;
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: 16px;
+  font-size: 14px;
   color: #2c2416;
-  padding: 8px 0;
+  padding: 2px 0;
   border-bottom: 1.5px solid #7a5c10 !important;
   outline: none;
   background: transparent;
@@ -722,32 +733,32 @@ function goToStats() {
 
 /* ── 底部操作栏 ─────────────────────────────────────── */
 .nb-bottom-bar {
-  padding: 10px 18px;
+  padding: 6px 14px;
   background-color: #e6e0d3;
   border-top: 1px solid #cfc5ae;
   display: flex;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   flex-shrink: 0;
 }
 .nb-last-btn {
   background-color: #a08050;
-  border-radius: 30px;
-  padding: 11px 28px;
+  border-radius: 26px;
+  padding: 8px 20px;
   cursor: pointer;
   user-select: none;
 }
 .nb-last-btn:active { opacity: 0.8; }
-.nb-last-btn-text { color: #fff8e8; font-size: 15px; font-weight: 600; }
+.nb-last-btn-text { color: #fff8e8; font-size: 14px; font-weight: 600; }
 .nb-add-btn {
   background-color: #7a5c10;
-  border-radius: 30px;
-  padding: 11px 40px;
+  border-radius: 26px;
+  padding: 8px 30px;
   cursor: pointer;
   user-select: none;
 }
 .nb-add-btn:active { opacity: 0.8; }
-.nb-add-btn-text { color: #fff8e8; font-size: 15px; font-weight: 600; }
+.nb-add-btn-text { color: #fff8e8; font-size: 14px; font-weight: 600; }
 
 /* ── 弹窗通用 ───────────────────────────────────────── */
 .nb-overlay {
@@ -815,7 +826,7 @@ function goToStats() {
 .nb-btn-delete { background-color: #c0392b; color: #fff; }
 .nb-btn-delete:active { opacity: 0.8; }
 
-/* ── 动作选择菜单（action sheet） ───────────────────── */
+/* ── 动作选择菜单 ───────────────────────────────────── */
 .nb-action-sheet {
   position: fixed;
   bottom: 0;
