@@ -1,5 +1,5 @@
 // localStorage 持久化封装
-const STORAGE_KEY = 'vocab_notebook_v1'
+const STORAGE_KEY = 'vocab_notebook_v3'
 
 export function loadStorage() {
   try {
