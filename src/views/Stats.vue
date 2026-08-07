@@ -29,6 +29,8 @@
           :key="i"
           class="stats-suggestion-item"
           :class="{ 'stats-suggestion-item--last': i === searchSuggestions.length - 1 }"
+          @mousedown.prevent="selectSuggestion(item)"
+          @touchstart.prevent="selectSuggestion(item)"
           @click="selectSuggestion(item)"
         >
           <div class="stats-suggestion-left">
@@ -173,7 +175,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onActivated } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNotebookStore } from '../store/notebook.js'
 import { inject } from 'vue'
@@ -182,7 +184,6 @@ const store = useNotebookStore()
 const router = useRouter()
 const showToast = inject('showToast')
 
-// 每次进入统计页时都重新读取数据
 store.init()
 
 // ── 搜索 ──────────────────────────────────────────────
@@ -512,7 +513,7 @@ const vLongPress = {
 .stats-forgotten-row {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-bottom: 1px solid #f0ebe0;
   gap: 10px;
 }
@@ -520,7 +521,7 @@ const vLongPress = {
 .stats-rank { font-size: 12px; color: #b8a98a; width: 20px; text-align: center; flex-shrink: 0; }
 .stats-forgotten-word {
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: 16px;
+  font-size: 14px;
   color: #2c2416;
   min-width: 120px;
   flex-shrink: 0;
@@ -537,8 +538,8 @@ const vLongPress = {
   transition: background-color 0.15s;
 }
 .stats-dots-wrap:active { opacity: 0.7; background: #f0ebe0; }
-.stats-dot { width: 9px; height: 9px; border-radius: 50%; background-color: #c0392b; }
-.stats-dot-overflow { font-size: 12px; color: #c0392b; }
+.stats-dot { width: 7px; height: 7px; border-radius: 50%; background-color: #c0392b; }
+.stats-dot-overflow { font-size: 11px; color: #c0392b; }
 .stats-page-label {
   font-size: 12px;
   color: #9b8f7a;
@@ -576,7 +577,7 @@ const vLongPress = {
 .stats-export-icon { font-size: 26px; }
 .stats-export-text { font-size: 16px; color: #e8f5f0; font-weight: 600; }
 
-/* ── 测试弹窗 ─────────────── */
+/* ── 测试弹窗 (与主页 14px 保持一致，布局紧凑) ── */
 .quiz-overlay {
   position: fixed;
   inset: 0;
@@ -588,70 +589,70 @@ const vLongPress = {
 }
 .quiz-modal {
   background-color: #fdfbf6;
-  border-radius: 20px;
+  border-radius: 18px;
   width: min(420px, 92vw);
-  max-height: 82vh;
+  max-height: 84vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 16px 60px rgba(0, 0, 0, 0.3);
 }
 .quiz-header {
-  padding: 20px 24px 14px;
+  padding: 14px 18px 10px;
   border-bottom: 1px solid #ede6d8;
   background-color: #f8f4ec;
 }
-.quiz-title { font-size: 18px; color: #2c2416; font-weight: 700; }
+.quiz-title { font-size: 15px; color: #2c2416; font-weight: 700; }
 .quiz-list { flex: 1; overflow-y: auto; }
 .quiz-item {
   display: flex;
   align-items: center;
-  padding: 14px 18px;
+  padding: 8px 14px;
   border-bottom: 1px solid #f0ebe0;
-  gap: 12px;
+  gap: 8px;
 }
 .quiz-item:last-child { border-bottom: none; }
-.quiz-num { font-size: 13px; color: #c4b49a; width: 22px; text-align: center; flex-shrink: 0; }
+.quiz-num { font-size: 12px; color: #c4b49a; width: 20px; text-align: center; flex-shrink: 0; }
 .quiz-circles-wrap {
-  min-width: 44px;
+  min-width: 36px;
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   flex-shrink: 0;
-  padding: 5px 8px;
+  padding: 3px 6px;
   background-color: #f4efe4;
-  border-radius: 14px;
+  border-radius: 12px;
   cursor: pointer;
 }
 .quiz-circles-wrap:active { opacity: 0.7; }
-.quiz-dot { width: 9px; height: 9px; border-radius: 50%; background-color: #c0392b; flex-shrink: 0; }
-.quiz-dot-overflow { font-size: 11px; color: #c0392b; font-weight: 600; }
-.quiz-dot-add-icon { font-size: 14px; color: #b8a98a; }
-.quiz-word { flex: 1; font-family: Georgia, serif; font-size: 17px; color: #2c2416; font-weight: 500; }
+.quiz-dot { width: 7px; height: 7px; border-radius: 50%; background-color: #c0392b; flex-shrink: 0; }
+.quiz-dot-overflow { font-size: 10px; color: #c0392b; font-weight: 600; }
+.quiz-dot-add-icon { font-size: 12px; color: #b8a98a; }
+.quiz-word { flex: 1; font-family: Georgia, 'Times New Roman', serif; font-size: 14px; color: #2c2416; font-weight: 500; }
 .quiz-page-tag {
   background-color: #f0ebe0;
-  padding: 4px 10px;
-  border-radius: 14px;
+  padding: 3px 8px;
+  border-radius: 12px;
   flex-shrink: 0;
   cursor: pointer;
 }
 .quiz-page-tag:active { background: #e6e0d3; }
-.quiz-page-text { font-size: 13px; color: #8b7355; font-weight: 500; }
+.quiz-page-text { font-size: 11px; color: #8b7355; font-weight: 500; }
 .quiz-actions {
   display: flex;
-  padding: 14px 18px;
-  gap: 12px;
+  padding: 10px 14px;
+  gap: 10px;
   border-top: 1px solid #ede6d8;
   background-color: #f8f4ec;
 }
 .quiz-action-btn {
   flex: 1;
-  padding: 14px 0;
-  border-radius: 30px;
+  padding: 10px 0;
+  border-radius: 24px;
   text-align: center;
   cursor: pointer;
   user-select: none;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
 }
 .quiz-action-btn--primary { background-color: #7a5c10; color: #fff8e8; }

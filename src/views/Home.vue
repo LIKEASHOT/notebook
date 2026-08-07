@@ -55,7 +55,7 @@
       </span>
     </div>
 
-    <!-- 单词本翻页（CSS scroll-snap 单页强停靠） -->
+    <!-- 单词本翻页 -->
     <div class="nb-swiper-wrap" ref="swiperWrap" @scroll.passive="onScroll">
       <div
         class="nb-swiper-inner"
@@ -70,7 +70,7 @@
             <!-- 纸张顶部分割线 -->
             <div class="nb-paper-top-rule"></div>
 
-            <!-- 16 个单词格 (Flex 1/16 均匀打满全屏) -->
+            <!-- 16 个单词格 -->
             <div
               v-for="slotIdx in 16"
               :key="slotIdx"
@@ -184,7 +184,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNotebookStore } from '../store/notebook.js'
 import { inject } from 'vue'
@@ -216,14 +216,13 @@ const deletingWord = ref('')
 onMounted(() => {
   store.init()
   nextTick(() => {
-    currentPage.value = Math.max(0, store.pages.length - 1)
-    scrollToPage(currentPage.value, 'instant')
+    const lastIdx = Math.max(0, store.pages.length - 1)
+    navigateToPage(lastIdx, 'instant')
 
     if (store.searchTarget) {
       const target = store.searchTarget
       store.searchTarget = null
-      currentPage.value = target.pageIdx
-      scrollToPage(target.pageIdx, 'instant')
+      navigateToPage(target.pageIdx, 'instant')
       setTimeout(() => {
         highlightedSlot.value = { pageIdx: target.pageIdx, slotIdx: target.slotIdx }
         clearTimeout(highlightTimer)
@@ -267,6 +266,13 @@ function scrollToPage(idx, behavior = 'smooth') {
   swiperWrap.value.scrollTo({ left: idx * w, behavior })
 }
 
+function navigateToPage(idx, behavior = 'smooth') {
+  const target = Math.max(0, Math.min(idx, store.pages.length - 1))
+  currentPage.value = target
+  activeSlot.value = null
+  scrollToPage(target, behavior)
+}
+
 function onScroll() {
   if (!swiperWrap.value) return
   const w = swiperWrap.value.offsetWidth
@@ -276,10 +282,6 @@ function onScroll() {
     activeSlot.value = null
   }
 }
-
-watch(currentPage, (newVal) => {
-  scrollToPage(newVal)
-})
 
 // ── 数据读取 ─────────────────────────────────────
 function getWord(pageIdx, slotIdx) {
@@ -384,11 +386,11 @@ function cancelDelete() {
 function addNewPage() {
   store.addNewPage()
   nextTick(() => {
-    currentPage.value = store.pages.length - 1
+    navigateToPage(store.pages.length - 1)
   })
 }
 function goToLastPage() {
-  currentPage.value = Math.max(0, store.pages.length - 1)
+  navigateToPage(store.pages.length - 1)
 }
 
 // ── 搜索 ─────────────────────────────────────────
@@ -434,8 +436,7 @@ function handleSearch() {
 }
 
 function selectSuggestion(item) {
-  currentPage.value = item.pageIdx
-  scrollToPage(item.pageIdx)
+  navigateToPage(item.pageIdx)
   highlightedSlot.value = { pageIdx: item.pageIdx, slotIdx: item.slotIdx }
   clearTimeout(highlightTimer)
   highlightTimer = setTimeout(() => { highlightedSlot.value = null }, 2500)
@@ -617,7 +618,7 @@ function goToStats() {
   padding: 6px 10px;
 }
 
-/* ── 纸张 (Flex布局，全高铺满不滚动) ───────────────── */
+/* ── 纸张 ───────────────────────────────────────────── */
 .nb-paper {
   background: linear-gradient(180deg, #fdfbf6 0%, #f8f4ec 100%);
   border-radius: 12px;
@@ -639,7 +640,7 @@ function goToStats() {
 }
 .nb-paper-num { font-size: 11px; color: #c4b49a; letter-spacing: 2px; }
 
-/* ── 单词行 (Flex 1/16 均匀分配高) ───────────────── */
+/* ── 单词行 ─────────────────────────────────────────── */
 .nb-word-row {
   flex: 1;
   min-height: 0;
