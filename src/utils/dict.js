@@ -95,6 +95,27 @@ function fetchYoudaoSuggestJSONP(word) {
 }
 
 /**
+ * 清洗音标，转换冷门 Unicode 组合字符为全平台兼容字符，杜绝手机端因缺少生僻字形导致的方框乱码
+ */
+export function cleanPhonetic(raw) {
+  if (!raw) return ''
+  let p = raw.trim()
+  p = p
+    .replace(/\u02C8/g, "'") // ˈ 重音符转标准单引号
+    .replace(/\u02CC/g, ',')  // ˌ 次重音符转标准逗号
+    .replace(/\u02D0/g, ':')  // ː 长音符转标准冒号
+    .replace(/\u0279/g, 'r')  // ɹ 转 r
+    .replace(/\u026B/g, 'l')  // ɫ 转 l
+    .replace(/\u0261/g, 'g')  // ɡ 转 g
+    .replace(/[\u0300-\u036F]/g, '') // 移除所有组合变音符号（如成节辅音点 U+0329）
+
+  if (!p.startsWith('/') && !p.startsWith('[')) {
+    p = `/${p}/`
+  }
+  return p
+}
+
+/**
  * 异步获取单词音标 (IPA 国际音标)
  */
 export async function fetchPhonetic(word) {
@@ -105,7 +126,7 @@ export async function fetchPhonetic(word) {
     if (!res.ok) return null
     const data = await res.json()
     const phonetic = data[0]?.phonetic || data[0]?.phonetics?.find(p => p.text)?.text || null
-    return phonetic
+    return cleanPhonetic(phonetic)
   } catch (e) {
     return null
   }

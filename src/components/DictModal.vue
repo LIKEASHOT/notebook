@@ -516,11 +516,11 @@ function jumpToTarget() {
 }
 
 .dict-phonetic {
-  font-family: 'Lucida Sans Unicode', 'Arial Unicode MS', 'DejaVu Sans', sans-serif;
-  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
   color: #7b6238;
   font-weight: 500;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.3px;
 }
 
 .dict-audio-btn {
