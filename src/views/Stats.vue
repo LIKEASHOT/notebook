@@ -20,6 +20,9 @@
             <span class="stats-clear-icon">×</span>
           </div>
         </div>
+        <div class="stats-dict-btn" @click="openDictModal('')">
+          <span class="stats-dict-btn-text">查词</span>
+        </div>
       </div>
 
       <!-- 候选词下拉框 -->
@@ -171,20 +174,41 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- 单词查询弹窗 -->
+    <DictModal
+      v-model="showDictModal"
+      :initial-word="dictInitialWord"
+      @jump-to-word="onJumpFromDict"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNotebookStore } from '../store/notebook.js'
-import { inject } from 'vue'
+import DictModal from '../components/DictModal.vue'
 
 const store = useNotebookStore()
 const router = useRouter()
 const showToast = inject('showToast')
 
 store.init()
+
+// ── 查词弹窗状态 ────────────────────────────────────
+const showDictModal = ref(false)
+const dictInitialWord = ref('')
+
+function openDictModal(word = '') {
+  dictInitialWord.value = typeof word === 'string' ? word : ''
+  showDictModal.value = true
+}
+
+function onJumpFromDict({ pageIdx, slotIdx }) {
+  store.searchTarget = { pageIdx, slotIdx }
+  router.push('/')
+}
 
 // ── 搜索 ──────────────────────────────────────────────
 const searchText = ref('')
@@ -228,7 +252,9 @@ function handleSearch() {
     selectSuggestion(searchSuggestions.value[0])
     return
   }
-  showToast('未找到该单词')
+  const query = (searchText.value || '').trim()
+  if (!query) return
+  openDictModal(query)
 }
 
 function selectSuggestion(item) {
@@ -403,6 +429,20 @@ const vLongPress = {
 .stats-search-field::placeholder { color: #b8a98a; }
 .stats-search-clear { padding: 6px; cursor: pointer; }
 .stats-clear-icon { font-size: 20px; color: #9b8f7a; }
+
+.stats-dict-btn {
+  background-color: #553e16;
+  border-radius: 18px;
+  padding: 8px 13px;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.stats-dict-btn:active { opacity: 0.8; }
+.stats-dict-btn-text { color: #fff8e8; font-size: 13px; font-weight: 600; }
 
 /* ── 候选词 ───────────────── */
 .stats-suggestions {

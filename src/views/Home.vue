@@ -17,6 +17,9 @@
             <span class="nb-clear-icon">×</span>
           </div>
         </div>
+        <div class="nb-dict-btn" @click="openDictModal('')">
+          <span class="nb-dict-btn-text">查词</span>
+        </div>
         <div class="nb-stats-btn" @click="goToStats">
           <span class="nb-stats-btn-text">统计</span>
         </div>
@@ -180,18 +183,29 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- 单词查询弹窗 -->
+    <DictModal
+      v-model="showDictModal"
+      :initial-word="dictInitialWord"
+      @jump-to-word="onJumpFromDict"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNotebookStore } from '../store/notebook.js'
-import { inject } from 'vue'
+import DictModal from '../components/DictModal.vue'
 
 const store = useNotebookStore()
 const router = useRouter()
 const showToast = inject('showToast')
+
+// ── 查词弹窗状态 ────────────────────────────────────
+const showDictModal = ref(false)
+const dictInitialWord = ref('')
 
 // ── 状态 ──────────────────────────────────────────────
 const swiperWrap = ref(null)
@@ -432,7 +446,8 @@ function handleSearch() {
   }
   const query = (searchText.value || '').trim()
   if (!query) return
-  showToast('未找到该单词')
+  // 本地未找到时，直接调起查词弹窗并查询该词
+  openDictModal(query)
 }
 
 function selectSuggestion(item) {
@@ -446,6 +461,18 @@ function selectSuggestion(item) {
 function clearSearch() {
   searchText.value = ''
   highlightedSlot.value = null
+}
+
+function openDictModal(word = '') {
+  dictInitialWord.value = typeof word === 'string' ? word : ''
+  showDictModal.value = true
+}
+
+function onJumpFromDict({ pageIdx, slotIdx }) {
+  navigateToPage(pageIdx)
+  highlightedSlot.value = { pageIdx, slotIdx }
+  clearTimeout(highlightTimer)
+  highlightTimer = setTimeout(() => { highlightedSlot.value = null }, 2500)
 }
 
 // ── 导航 ─────────────────────────────────────────
@@ -512,10 +539,25 @@ function goToStats() {
   cursor: pointer;
 }
 .nb-clear-icon { font-size: 18px; color: #9b8f7a; }
+
+.nb-dict-btn {
+  background-color: #553e16;
+  border-radius: 18px;
+  padding: 6px 12px;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nb-dict-btn:active { opacity: 0.8; }
+.nb-dict-btn-text { color: #fff8e8; font-size: 13px; font-weight: 600; }
+
 .nb-stats-btn {
   background-color: #7a5c10;
   border-radius: 18px;
-  padding: 6px 14px;
+  padding: 6px 12px;
   cursor: pointer;
   user-select: none;
   flex-shrink: 0;

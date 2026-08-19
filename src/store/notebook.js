@@ -2154,6 +2154,72 @@ export const useNotebookStore = defineStore('notebook', {
         this.pages[item.pageIdx].words[item.slotIdx].circles = item.circles
         this.save()
       }
+    },
+
+    findWord(word) {
+      if (!word) return null
+      const target = word.trim().toLowerCase()
+      for (let pi = 0; pi < this.pages.length; pi++) {
+        for (let si = 0; si < (this.pages[pi]?.words?.length || 16); si++) {
+          const w = this.pages[pi]?.words[si]
+          if (w && w.text && w.text.toLowerCase() === target) {
+            return {
+              exists: true,
+              pageId: this.pages[pi].id,
+              pageIdx: pi,
+              slotIdx: si,
+              word: w.text,
+              circles: w.circles || 0
+            }
+          }
+        }
+      }
+      return null
+    },
+
+    addWordToNotebook(word) {
+      const text = (word || '').trim().toLowerCase()
+      if (!text) return { success: false, msg: '单词不能为空' }
+
+      const existing = this.findWord(text)
+      if (existing) {
+        return { success: false, alreadyExists: true, ...existing }
+      }
+
+      if (this.pages.length === 0) {
+        this.addNewPage()
+      }
+
+      // 优先在最后一页寻找空位
+      const lastPageIdx = this.pages.length - 1
+      const lastPage = this.pages[lastPageIdx]
+      let emptySlotIdx = lastPage.words.findIndex(w => !w.text)
+
+      if (emptySlotIdx !== -1) {
+        lastPage.words[emptySlotIdx].text = text
+        lastPage.words[emptySlotIdx].circles = 0
+        this.save()
+        return {
+          success: true,
+          pageId: lastPage.id,
+          pageIdx: lastPageIdx,
+          slotIdx: emptySlotIdx
+        }
+      }
+
+      // 若最后一页已满，新建一页并放入第 1 格
+      this.addNewPage()
+      const newPageIdx = this.pages.length - 1
+      const newPage = this.pages[newPageIdx]
+      newPage.words[0].text = text
+      newPage.words[0].circles = 0
+      this.save()
+      return {
+        success: true,
+        pageId: newPage.id,
+        pageIdx: newPageIdx,
+        slotIdx: 0
+      }
     }
   },
 
