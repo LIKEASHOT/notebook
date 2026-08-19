@@ -95,6 +95,23 @@ function fetchYoudaoSuggestJSONP(word) {
 }
 
 /**
+ * 异步获取单词音标 (IPA 国际音标)
+ */
+export async function fetchPhonetic(word) {
+  try {
+    const cleanWord = (word || '').trim().toLowerCase()
+    if (!cleanWord || cleanWord.includes(' ')) return null
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cleanWord)}`)
+    if (!res.ok) return null
+    const data = await res.json()
+    const phonetic = data[0]?.phonetic || data[0]?.phonetics?.find(p => p.text)?.text || null
+    return phonetic
+  } catch (e) {
+    return null
+  }
+}
+
+/**
  * 查询单词详情
  * @param {string} rawWord - 目标查询词
  * @returns {Promise<{ found: boolean, word: string, phonetic?: string, lines: Array<{pos: string, meaning: string}> }>}
@@ -102,15 +119,18 @@ function fetchYoudaoSuggestJSONP(word) {
 export async function queryWord(rawWord) {
   const word = (rawWord || '').trim()
   if (!word) {
-    return { found: false, word: '', lines: [] }
+    return { found: false, word: '', lines: [], phonetic: '' }
   }
 
   try {
-    const data = await fetchYoudaoSuggestJSONP(word)
+    const [data, phonetic] = await Promise.all([
+      fetchYoudaoSuggestJSONP(word),
+      fetchPhonetic(word)
+    ])
     const entries = data?.data?.entries || []
     
     if (entries.length === 0) {
-      return { found: false, word, lines: [] }
+      return { found: false, word, lines: [], phonetic: phonetic || '' }
     }
 
     // 精确优先匹配，否则取第一项
@@ -123,6 +143,7 @@ export async function queryWord(rawWord) {
     return {
       found: parsedLines.length > 0,
       word: targetEntry.entry || word,
+      phonetic: phonetic || '',
       lines: parsedLines
     }
   } catch (error) {

@@ -22,7 +22,11 @@
               v-model="queryInput"
               class="dict-input"
               placeholder="输入英文单词或短语..."
-              type="search"
+              type="text"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
               @keydown.enter="handleSearch"
             />
             <div v-if="queryInput" class="dict-input-clear" @click="clearInput">
@@ -48,20 +52,26 @@
 
           <!-- 查词成功 -->
           <div v-else-if="result && result.found" class="dict-result">
-            <!-- 单词标题与发音 -->
+            <!-- 单词标题、音标与发音 -->
             <div class="dict-word-header">
               <div class="dict-word-main">
-                <span class="dict-word-text">{{ result.word }}</span>
-                <!-- 发音按钮 -->
-                <button
-                  class="dict-audio-btn"
-                  :class="{ 'dict-audio-btn--playing': isPlayingAudio }"
-                  title="播放美音发音"
-                  @click="playAudio"
-                >
-                  <span class="dict-audio-icon">🔊</span>
-                  <span class="dict-audio-label">朗读</span>
-                </button>
+                <div class="dict-word-top">
+                  <span class="dict-word-text">{{ result.word }}</span>
+                  <!-- 发音按钮 -->
+                  <button
+                    class="dict-audio-btn"
+                    :class="{ 'dict-audio-btn--playing': isPlayingAudio }"
+                    title="播放发音"
+                    @click="playAudio"
+                  >
+                    <span class="dict-audio-icon">🔊</span>
+                    <span class="dict-audio-label">朗读</span>
+                  </button>
+                </div>
+                <!-- 单词下方音标 -->
+                <div v-if="result.phonetic" class="dict-phonetic">
+                  {{ result.phonetic }}
+                </div>
               </div>
 
               <!-- 笔记本状态徽标 -->
@@ -363,6 +373,16 @@ function jumpToTarget() {
   background: transparent;
   border: none;
   outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.dict-input::-webkit-search-decoration,
+.dict-input::-webkit-search-cancel-button,
+.dict-input::-webkit-search-results-button,
+.dict-input::-webkit-search-results-decoration {
+  display: none;
+  -webkit-appearance: none;
 }
 
 .dict-input::placeholder {
@@ -469,7 +489,7 @@ function jumpToTarget() {
 
 .dict-word-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding-bottom: 12px;
   border-bottom: 1px dashed #ded4c0;
@@ -477,8 +497,14 @@ function jumpToTarget() {
 
 .dict-word-main {
   display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dict-word-top {
+  display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .dict-word-text {
@@ -487,6 +513,14 @@ function jumpToTarget() {
   font-weight: 700;
   color: #2c2416;
   letter-spacing: 0.3px;
+}
+
+.dict-phonetic {
+  font-family: 'Lucida Sans Unicode', 'Arial Unicode MS', 'DejaVu Sans', sans-serif;
+  font-size: 13px;
+  color: #7b6238;
+  font-weight: 500;
+  letter-spacing: 0.4px;
 }
 
 .dict-audio-btn {
@@ -522,6 +556,7 @@ function jumpToTarget() {
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 12px;
+  margin-top: 4px;
 }
 
 .dict-badge--saved {
@@ -545,12 +580,12 @@ function jumpToTarget() {
 
 .dict-line-item {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
   background-color: #fbf7ee;
   border: 1px solid #ebdcc5;
   border-radius: 10px;
-  padding: 8px 12px;
+  padding: 9px 12px;
   line-height: 1.5;
 }
 
@@ -561,10 +596,9 @@ function jumpToTarget() {
   font-size: 11px;
   font-weight: 700;
   font-family: monospace, sans-serif;
-  padding: 2px 7px;
+  padding: 3px 8px;
   border-radius: 6px;
   letter-spacing: 0.3px;
-  margin-top: 1px;
 }
 
 .dict-meaning-text {
