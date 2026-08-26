@@ -9,7 +9,11 @@
             class="nb-search-field"
             v-model="searchText"
             placeholder="搜索单词..."
-            type="search"
+            type="text"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
             @input="onSearchInput"
             @keydown.enter="handleSearch"
           />
@@ -531,6 +535,14 @@ function goToStats() {
   background: transparent;
   border: none;
   outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.nb-search-field::-webkit-search-decoration,
+.nb-search-field::-webkit-search-cancel-button,
+.nb-search-field::-webkit-search-results-button,
+.nb-search-field::-webkit-search-results-decoration {
+  display: none;
   -webkit-appearance: none;
 }
 .nb-search-field::placeholder { color: #b8a98a; }

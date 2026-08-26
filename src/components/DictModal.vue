@@ -138,7 +138,7 @@
 
 <script setup>
 import { ref, watch, computed, nextTick, inject } from 'vue'
-import { queryWord, playWordAudio } from '../utils/dict.js'
+import { queryWord, fetchPhonetic, playWordAudio } from '../utils/dict.js'
 import { useNotebookStore } from '../store/notebook.js'
 
 const props = defineProps({
@@ -210,10 +210,18 @@ async function handleSearch() {
   try {
     const res = await queryWord(word)
     result.value = res
+    loading.value = false // 立即显示释义
+
+    if (res && res.found && res.word) {
+      fetchPhonetic(res.word).then((phonetic) => {
+        if (phonetic && result.value && result.value.word.toLowerCase() === res.word.toLowerCase()) {
+          result.value.phonetic = phonetic
+        }
+      })
+    }
   } catch (err) {
     showToast(err.message || '查询失败，请检查网络')
     result.value = null
-  } finally {
     loading.value = false
   }
 }

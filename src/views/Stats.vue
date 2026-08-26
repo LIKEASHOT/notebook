@@ -12,7 +12,11 @@
             class="stats-search-field"
             v-model="searchText"
             placeholder="搜索单词，找到后跳转到该页..."
-            type="search"
+            type="text"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
             @input="onSearchInput"
             @keydown.enter="handleSearch"
           />
@@ -424,6 +428,14 @@ const vLongPress = {
   background: transparent;
   border: none;
   outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.stats-search-field::-webkit-search-decoration,
+.stats-search-field::-webkit-search-cancel-button,
+.stats-search-field::-webkit-search-results-button,
+.stats-search-field::-webkit-search-results-decoration {
+  display: none;
   -webkit-appearance: none;
 }
 .stats-search-field::placeholder { color: #b8a98a; }

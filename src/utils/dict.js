@@ -115,25 +115,40 @@ export function cleanPhonetic(raw) {
   return p
 }
 
+// 内存高速缓存
+const dictCache = new Map()
+const phoneticCache = new Map()
+
 /**
- * 异步获取单词音标 (IPA 国际音标)
+ * 异步获取单词音标 (IPA 国际音标，带超时保护与内存缓存)
  */
 export async function fetchPhonetic(word) {
+  const cleanWord = (word || '').trim().toLowerCase()
+  if (!cleanWord || cleanWord.includes(' ')) return null
+  if (phoneticCache.has(cleanWord)) return phoneticCache.get(cleanWord)
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 1200)
+
   try {
-    const cleanWord = (word || '').trim().toLowerCase()
-    if (!cleanWord || cleanWord.includes(' ')) return null
-    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cleanWord)}`)
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cleanWord)}`, {
+      signal: controller.signal
+    })
     if (!res.ok) return null
     const data = await res.json()
     const phonetic = data[0]?.phonetic || data[0]?.phonetics?.find(p => p.text)?.text || null
-    return cleanPhonetic(phonetic)
+    const cleaned = cleanPhonetic(phonetic)
+    if (cleaned) phoneticCache.set(cleanWord, cleaned)
+    return cleaned
   } catch (e) {
     return null
+  } finally {
+    clearTimeout(timer)
   }
 }
 
 /**
- * 查询单词详情
+ * 查询单词详情（极速国内直连，秒级响应）
  * @param {string} rawWord - 目标查询词
  * @returns {Promise<{ found: boolean, word: string, phonetic?: string, lines: Array<{pos: string, meaning: string}> }>}
  */
@@ -143,15 +158,17 @@ export async function queryWord(rawWord) {
     return { found: false, word: '', lines: [], phonetic: '' }
   }
 
+  const cacheKey = word.toLowerCase()
+  if (dictCache.has(cacheKey)) {
+    return JSON.parse(JSON.stringify(dictCache.get(cacheKey)))
+  }
+
   try {
-    const [data, phonetic] = await Promise.all([
-      fetchYoudaoSuggestJSONP(word),
-      fetchPhonetic(word)
-    ])
+    const data = await fetchYoudaoSuggestJSONP(word)
     const entries = data?.data?.entries || []
     
     if (entries.length === 0) {
-      return { found: false, word, lines: [], phonetic: phonetic || '' }
+      return { found: false, word, lines: [], phonetic: '' }
     }
 
     // 精确优先匹配，否则取第一项
@@ -160,13 +177,18 @@ export async function queryWord(rawWord) {
     ) || entries[0]
 
     const parsedLines = parseExplainToLines(targetEntry.explain)
-
-    return {
+    const result = {
       found: parsedLines.length > 0,
       word: targetEntry.entry || word,
-      phonetic: phonetic || '',
+      phonetic: phoneticCache.get(targetEntry.entry?.toLowerCase() || cacheKey) || '',
       lines: parsedLines
     }
+
+    if (result.found) {
+      dictCache.set(cacheKey, result)
+    }
+
+    return result
   } catch (error) {
     console.error('queryWord error:', error)
     throw error
