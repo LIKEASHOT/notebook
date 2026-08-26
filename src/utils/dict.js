@@ -1,39 +1,51 @@
-// 单词查询工具库（对接有道词典开放 API，支持 JSONP 跨域及词性解析）
+// 单词查询工具库（支持完整释义提取、JSONP 降级、音标清洗与高速缓存）
 
 /**
- * 将释义文本拆解为按词性排列的结构化数组
- * 例如: "adj. 困难的; v. 挑战" -> [{ pos: 'adj.', meaning: '困难的' }, { pos: 'v.', meaning: '挑战' }]
+ * 将单条释义文本转换为结构化对象 { pos, meaning }
+ */
+export function parseTranslationLine(raw) {
+  if (!raw) return null
+  const line = raw.trim()
+  if (!line) return null
+
+  // 1. 标准词性开头，如: v. 检查，核对... 或 adj. 困难的...
+  const posMatch = line.match(/^([a-zA-Z]+\.)\s*(.*)$/)
+  if (posMatch) {
+    return {
+      pos: posMatch[1],
+      meaning: posMatch[2].replace(/[；;]+$/, '').replace(/[\.]{3,}$|……$/, '').trim()
+    }
+  }
+
+  // 2. 中文短语/词条冒号开头，如: 习惯于：熟悉某事物...
+  const colonMatch = line.match(/^([^：:\n]{1,10})[：:]\s*(.*)$/)
+  if (colonMatch) {
+    return {
+      pos: colonMatch[1].trim(),
+      meaning: colonMatch[2].replace(/[；;]+$/, '').replace(/[\.]{3,}$|……$/, '').trim()
+    }
+  }
+
+  // 3. 其他常规释义
+  return {
+    pos: '释义',
+    meaning: line.replace(/[；;]+$/, '').replace(/[\.]{3,}$|……$/, '').trim()
+  }
+}
+
+/**
+ * 将复合长释义（分号连接）拆解为按词性排列的结构化数组（用于 Suggest 降级）
  */
 export function parseExplainToLines(explain) {
   if (!explain) return []
   const raw = explain.trim()
   const parts = raw.split(/;\s*(?=(?:[a-zA-Z]+\.\s*|[^;；：:\n]{1,10}[：:]))/)
   const results = []
-  const posRegex = /^([a-zA-Z]+\.)\s*(.*)$/
 
   for (let part of parts) {
-    part = part.trim()
-    if (!part) continue
-
-    const match = part.match(posRegex)
-    if (match) {
-      results.push({
-        pos: match[1],
-        meaning: match[2].trim().replace(/[；;]+$/, '')
-      })
-    } else {
-      const colonMatch = part.match(/^([^：:\n]{1,10})[：:]\s*(.*)$/)
-      if (colonMatch) {
-        results.push({
-          pos: colonMatch[1].trim(),
-          meaning: colonMatch[2].trim().replace(/[；;]+$/, '')
-        })
-      } else {
-        results.push({
-          pos: '释义',
-          meaning: part.replace(/[；;]+$/, '')
-        })
-      }
+    const item = parseTranslationLine(part)
+    if (item && item.meaning) {
+      results.push(item)
     }
   }
   return results
@@ -56,41 +68,6 @@ export function playWordAudio(word, type = 2) {
   const audio = new Audio(url)
   return audio.play().catch(err => {
     console.warn('播放发音失败:', err)
-  })
-}
-
-/**
- * JSONP 查询有道词典单词建议与释义
- */
-function fetchYoudaoSuggestJSONP(word) {
-  return new Promise((resolve, reject) => {
-    const callbackName = 'youdao_dict_cb_' + Date.now() + '_' + Math.floor(Math.random() * 10000)
-    const script = document.createElement('script')
-    let timeoutId = null
-
-    const cleanup = () => {
-      if (timeoutId) clearTimeout(timeoutId)
-      if (script.parentNode) script.parentNode.removeChild(script)
-      delete window[callbackName]
-    }
-
-    timeoutId = setTimeout(() => {
-      cleanup()
-      reject(new Error('查询超时，请检查网络连接'))
-    }, 6000)
-
-    window[callbackName] = (data) => {
-      cleanup()
-      resolve(data)
-    }
-
-    script.onerror = () => {
-      cleanup()
-      reject(new Error('网络请求失败'))
-    }
-
-    script.src = `https://dict.youdao.com/suggest?doctype=json&num=5&callback=${callbackName}&q=${encodeURIComponent(word)}`
-    document.body.appendChild(script)
   })
 }
 
@@ -118,6 +95,87 @@ export function cleanPhonetic(raw) {
 // 内存高速缓存
 const dictCache = new Map()
 const phoneticCache = new Map()
+
+/**
+ * 通过有道 fsearch 接口获取【完整未截断】的释义与原生音标
+ */
+async function fetchYoudaoFsearch(word) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 2500)
+
+  try {
+    const res = await fetch(`/api/youdao/fsearch?q=${encodeURIComponent(word)}`, {
+      signal: controller.signal
+    })
+    if (!res.ok) return null
+    const xmlText = await res.text()
+
+    const lines = []
+    const translationRegex = /<translation><content><!\[CDATA\[(.*?)\]\]><\/content><\/translation>/g
+    let match
+    while ((match = translationRegex.exec(xmlText)) !== null) {
+      const raw = match[1].trim()
+      if (raw.startsWith('【名】') || raw.startsWith('【人名】')) continue
+      const parsed = parseTranslationLine(raw)
+      if (parsed && parsed.meaning) {
+        lines.push(parsed)
+      }
+    }
+
+    if (lines.length === 0) return null
+
+    // 提取原生音标
+    const phoneticMatch = xmlText.match(/<phonetic-symbol>(.*?)<\/phonetic-symbol>/)
+    const rawPhonetic = phoneticMatch ? phoneticMatch[1].trim() : ''
+    const phonetic = cleanPhonetic(rawPhonetic)
+
+    return {
+      found: true,
+      word,
+      phonetic,
+      lines
+    }
+  } catch (e) {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * JSONP 降级查询（仅在代理不可用时作为备选）
+ */
+function fetchYoudaoSuggestJSONP(word) {
+  return new Promise((resolve, reject) => {
+    const callbackName = 'youdao_dict_cb_' + Date.now() + '_' + Math.floor(Math.random() * 10000)
+    const script = document.createElement('script')
+    let timeoutId = null
+
+    const cleanup = () => {
+      if (timeoutId) clearTimeout(timeoutId)
+      if (script.parentNode) script.parentNode.removeChild(script)
+      delete window[callbackName]
+    }
+
+    timeoutId = setTimeout(() => {
+      cleanup()
+      reject(new Error('查询超时，请检查网络连接'))
+    }, 4000)
+
+    window[callbackName] = (data) => {
+      cleanup()
+      resolve(data)
+    }
+
+    script.onerror = () => {
+      cleanup()
+      reject(new Error('网络请求失败'))
+    }
+
+    script.src = `https://dict.youdao.com/suggest?doctype=json&num=5&callback=${callbackName}&q=${encodeURIComponent(word)}`
+    document.body.appendChild(script)
+  })
+}
 
 /**
  * 异步获取单词音标 (IPA 国际音标，带超时保护与内存缓存)
@@ -148,7 +206,7 @@ export async function fetchPhonetic(word) {
 }
 
 /**
- * 查询单词详情（极速国内直连，秒级响应）
+ * 查询单词详情（优先完整释义，带降级与高速缓存）
  * @param {string} rawWord - 目标查询词
  * @returns {Promise<{ found: boolean, word: string, phonetic?: string, lines: Array<{pos: string, meaning: string}> }>}
  */
@@ -163,6 +221,17 @@ export async function queryWord(rawWord) {
     return JSON.parse(JSON.stringify(dictCache.get(cacheKey)))
   }
 
+  // 1. 优先尝试获取【完整无截断】释义与原生音标
+  const fullResult = await fetchYoudaoFsearch(word)
+  if (fullResult && fullResult.found && fullResult.lines.length > 0) {
+    if (fullResult.phonetic) {
+      phoneticCache.set(cacheKey, fullResult.phonetic)
+    }
+    dictCache.set(cacheKey, fullResult)
+    return fullResult
+  }
+
+  // 2. 降级方案：使用 JSONP 查询建议
   try {
     const data = await fetchYoudaoSuggestJSONP(word)
     const entries = data?.data?.entries || []
@@ -171,7 +240,6 @@ export async function queryWord(rawWord) {
       return { found: false, word, lines: [], phonetic: '' }
     }
 
-    // 精确优先匹配，否则取第一项
     const targetEntry = entries.find(
       e => e.entry.toLowerCase() === word.toLowerCase()
     ) || entries[0]

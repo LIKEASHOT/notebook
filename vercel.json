@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/youdao/:path*",
+      "destination": "https://dict.youdao.com/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
