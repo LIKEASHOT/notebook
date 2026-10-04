@@ -107,10 +107,69 @@
         <span class="stats-empty-text">还没有单词添加圆圈标记</span>
       </div>
 
-      <!-- 导出按钮 -->
-      <div class="stats-export-btn" @click="exportData">
-        <span class="stats-export-icon">💾</span>
-        <span class="stats-export-text">导出全部单词数据</span>
+      <!-- ── 多设备云端同步 ── -->
+      <div class="stats-sync-card">
+        <div class="stats-sync-header">
+          <div class="stats-sync-title-wrap">
+            <span class="stats-sync-title">多设备云端同步</span>
+            <span class="stats-sync-mode-tag">{{ syncState.mode === 'github_gist' ? 'GitHub Gist' : 'Vercel KV' }}</span>
+          </div>
+          <div class="stats-sync-badge" :class="'stats-sync-badge--' + syncState.status">
+            <span class="stats-sync-badge-dot"></span>
+            <span class="stats-sync-badge-text">{{ syncStatusText }}</span>
+          </div>
+        </div>
+
+        <div class="stats-sync-info-row">
+          <span class="stats-sync-info-text">{{ syncState.message }}</span>
+        </div>
+
+        <div class="stats-sync-actions">
+          <button class="stats-sync-btn stats-sync-btn--primary" :disabled="isSyncing" @click="handleManualPush">
+            <span>{{ isPushing ? '正在上传...' : '☁️ 立即同步至云端' }}</span>
+          </button>
+          <button class="stats-sync-btn stats-sync-btn--secondary" :disabled="isSyncing" @click="handleManualPull">
+            <span>{{ isPulling ? '正在拉取...' : '🔄 从云端拉取更新' }}</span>
+          </button>
+          <button class="stats-sync-btn stats-sync-btn--gear" @click="showSyncSettingsModal = true">
+            <span>⚙️ 同步设置</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ── 数据备份与迁移 ── -->
+      <div class="stats-section">
+        <div class="stats-section-header">
+          <span class="stats-section-title">数据备份与迁移</span>
+        </div>
+        <div class="stats-backup-row">
+          <!-- 导出按钮 -->
+          <div class="stats-backup-btn" @click="exportData">
+            <span class="stats-backup-icon">📤</span>
+            <div class="stats-backup-btn-texts">
+              <span class="stats-backup-btn-title">导出全部单词数据</span>
+              <span class="stats-backup-btn-desc">复制为文本格式（如 data.txt），可在任何设备备份</span>
+            </div>
+          </div>
+
+          <!-- 导入按钮 -->
+          <div class="stats-backup-btn" @click="openImportModal">
+            <span class="stats-backup-icon">📥</span>
+            <div class="stats-backup-btn-texts">
+              <span class="stats-backup-btn-title">导入文本数据</span>
+              <span class="stats-backup-btn-desc">粘贴 data.txt 文本，一键解析并同步替换当前词库</span>
+            </div>
+          </div>
+
+          <!-- 恢复出厂 37 面数据 -->
+          <div class="stats-backup-btn stats-backup-btn--danger" @click="confirmResetToFactory">
+            <span class="stats-backup-icon">🔄</span>
+            <div class="stats-backup-btn-texts">
+              <span class="stats-backup-btn-title">重置恢复为最新 37 面底库</span>
+              <span class="stats-backup-btn-desc">恢复至 data.txt 对应的 583 词及 284 处复习打点</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="stats-bottom-spacer"></div>
@@ -179,6 +238,152 @@
       </div>
     </Teleport>
 
+    <!-- 文本导入弹窗 -->
+    <Teleport to="body">
+      <div v-if="showImportModal" class="nb-overlay" @click.self="closeImportModal">
+        <div class="import-modal" @click.stop>
+          <div class="import-modal-header">
+            <span class="import-modal-title">📥 导入单词数据</span>
+            <span class="import-modal-close" @click="closeImportModal">✕</span>
+          </div>
+
+          <p class="import-modal-tip">
+            请将导出的文本内容（例如 <code>data.txt</code>）完整粘贴在下方，系统会自动解析出页码与打点标记。
+          </p>
+
+          <textarea
+            class="import-textarea"
+            v-model="importInputText"
+            placeholder="粘贴 data.txt 内容..."
+            rows="8"
+            @input="importParseResult = null"
+          ></textarea>
+
+          <!-- 解析结果提示 -->
+          <div v-if="importParseResult" class="import-result-box" :class="{ 'import-result-box--err': !importParseResult.success }">
+            <template v-if="importParseResult.success">
+              <span class="import-result-ok">✓ 成功解析：共 <b>{{ importParseResult.pageCount }}</b> 面，<b>{{ importParseResult.wordCount }}</b> 个单词，<b>{{ importParseResult.circleCount }}</b> 处打点标记</span>
+            </template>
+            <template v-else>
+              <span class="import-result-err">✕ {{ importParseResult.msg }}</span>
+            </template>
+          </div>
+
+          <div class="import-modal-actions">
+            <button class="import-btn import-btn--parse" @click="handleParseImportText">
+              <span>🔍 检查解析</span>
+            </button>
+            <button
+              class="import-btn import-btn--confirm"
+              :disabled="!importParseResult || !importParseResult.success"
+              @click="confirmApplyImport"
+            >
+              <span>覆盖并保存</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 重置出厂确认弹窗 -->
+    <Teleport to="body">
+      <div v-if="showResetModal" class="nb-overlay" @click.self="showResetModal = false">
+        <div class="confirm-modal" @click.stop>
+          <span class="confirm-modal-title">⚠️ 重置底库确认</span>
+          <p class="confirm-modal-text">
+            确定要将当前所有页面恢复为最新的 37 面（包含 583 个单词及 284 处复习打点）吗？<br/>
+            该操作将以 data.txt 为准重置当前数据，并推送到云端。
+          </p>
+          <div class="confirm-modal-actions">
+            <button class="confirm-btn confirm-btn--cancel" @click="showResetModal = false">取消</button>
+            <button class="confirm-btn confirm-btn--danger" @click="executeReset">确定重置</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 云端同步设置弹窗 -->
+    <Teleport to="body">
+      <div v-if="showSyncSettingsModal" class="nb-overlay" @click.self="showSyncSettingsModal = false">
+        <div class="sync-settings-modal" @click.stop>
+          <div class="sync-modal-header">
+            <span class="sync-modal-title">⚙️ 多设备云同步设置</span>
+            <span class="sync-modal-close" @click="showSyncSettingsModal = false">✕</span>
+          </div>
+
+          <div class="sync-modal-body">
+            <!-- 同步模式选择 -->
+            <div class="sync-field-group">
+              <label class="sync-field-label">云同步通道模式</label>
+              <div class="sync-mode-selector">
+                <div
+                  class="sync-mode-option"
+                  :class="{ active: syncSettingsForm.mode === 'vercel_kv' }"
+                  @click="syncSettingsForm.mode = 'vercel_kv'"
+                >
+                  <span class="sync-mode-name">Vercel KV (推荐)</span>
+                  <span class="sync-mode-sub">部署环境自带，零门槛多端互通</span>
+                </div>
+                <div
+                  class="sync-mode-option"
+                  :class="{ active: syncSettingsForm.mode === 'github_gist' }"
+                  @click="syncSettingsForm.mode = 'github_gist'"
+                >
+                  <span class="sync-mode-name">GitHub Gist</span>
+                  <span class="sync-mode-sub">利用 GitHub Token 私有云备份</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Vercel KV 设置 -->
+            <template v-if="syncSettingsForm.mode === 'vercel_kv'">
+              <div class="sync-field-group">
+                <label class="sync-field-label">设备同步标识码 (Sync Key)</label>
+                <input
+                  class="sync-input"
+                  type="text"
+                  v-model="syncSettingsForm.syncKey"
+                  placeholder="例如：main 或自定义英文代码"
+                />
+                <span class="sync-field-hint">两台设备输入相同的标识码即可共享同一份数据（默认 main）。</span>
+              </div>
+            </template>
+
+            <!-- GitHub Gist 设置 -->
+            <template v-if="syncSettingsForm.mode === 'github_gist'">
+              <div class="sync-field-group">
+                <label class="sync-field-label">GitHub Personal Access Token</label>
+                <input
+                  class="sync-input"
+                  type="password"
+                  v-model="syncSettingsForm.githubToken"
+                  placeholder="ghp_xxxxxxxxxxxx"
+                />
+                <span class="sync-field-hint">需带有 gist 权限的 GitHub Token，保存在本地。</span>
+              </div>
+              <div class="sync-field-group" v-if="syncState.gistId">
+                <label class="sync-field-label">当前绑定的 Gist ID</label>
+                <span class="sync-field-val">{{ syncState.gistId }}</span>
+              </div>
+            </template>
+
+            <!-- 自动同步开关 -->
+            <div class="sync-field-group sync-field-group--switch">
+              <div>
+                <span class="sync-field-label">自动双向同步</span>
+                <span class="sync-field-hint">修改后自动上传，切回应用时自动拉取最新数据</span>
+              </div>
+              <input type="checkbox" v-model="syncSettingsForm.autoSync" class="sync-switch" />
+            </div>
+          </div>
+
+          <div class="sync-modal-actions">
+            <button class="sync-modal-btn sync-modal-btn--save" @click="saveSyncSettings">保存设置并测试连接</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- 单词查询弹窗 -->
     <DictModal
       v-model="showDictModal"
@@ -189,10 +394,12 @@
 </template>
 
 <script setup>
-import { ref, computed, inject } from 'vue'
+import { ref, reactive, computed, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNotebookStore } from '../store/notebook.js'
 import DictModal from '../components/DictModal.vue'
+import { syncState, saveSyncConfig } from '../utils/sync.js'
+import { parseNotebookText } from '../utils/importer.js'
 
 const store = useNotebookStore()
 const router = useRouter()
@@ -339,6 +546,131 @@ function exportData() {
   }).catch(() => {
     showToast('复制失败，请重试')
   })
+}
+
+// ── 云同步交互 ─────────────────────────────────────────
+const isPushing = ref(false)
+const isPulling = ref(false)
+const isSyncing = computed(() => isPushing.value || isPulling.value)
+
+const syncStatusText = computed(() => {
+  if (isPushing.value) return '上传中'
+  if (isPulling.value) return '拉取中'
+  switch (syncState.status) {
+    case 'synced': return '已同步'
+    case 'syncing': return '同步中'
+    case 'pulling': return '拉取中'
+    case 'error': return '出错'
+    case 'unconfigured': return '未配置'
+    default: return '待同步'
+  }
+})
+
+async function handleManualPush() {
+  if (isSyncing.value) return
+  isPushing.value = true
+  try {
+    const res = await store.syncService?.pushToCloud(false)
+    if (res?.success) {
+      showToast('已成功同步并推送到云端！')
+    } else if (res?.reason === 'unconfigured') {
+      showToast('云端尚未绑定数据库，可点击设置查看')
+    } else {
+      showToast('上传失败，请查看网络或配置')
+    }
+  } catch (e) {
+    showToast('上传失败: ' + e.message)
+  } finally {
+    isPushing.value = false
+  }
+}
+
+async function handleManualPull() {
+  if (isSyncing.value) return
+  isPulling.value = true
+  try {
+    const res = await store.syncService?.pullFromCloud(false)
+    if (res?.success) {
+      showToast('已从云端拉取最新数据！')
+    } else if (res?.reason === 'unconfigured') {
+      showToast('云端尚未绑定数据库')
+    } else {
+      showToast('拉取完成，已是最新状态')
+    }
+  } catch (e) {
+    showToast('拉取失败: ' + e.message)
+  } finally {
+    isPulling.value = false
+  }
+}
+
+// ── 云同步设置弹窗 ─────────────────────────────────────
+const showSyncSettingsModal = ref(false)
+const syncSettingsForm = reactive({
+  mode: syncState.mode || 'vercel_kv',
+  syncKey: syncState.syncKey || 'main',
+  githubToken: syncState.githubToken || '',
+  autoSync: syncState.autoSync !== false
+})
+
+async function saveSyncSettings() {
+  syncState.mode = syncSettingsForm.mode
+  syncState.syncKey = (syncSettingsForm.syncKey || '').trim() || 'main'
+  syncState.githubToken = (syncSettingsForm.githubToken || '').trim()
+  syncState.autoSync = syncSettingsForm.autoSync !== false
+  saveSyncConfig()
+  showSyncSettingsModal.value = false
+  showToast('设置已保存，正在测试同步...')
+  await handleManualPull()
+}
+
+// ── 文本导入弹窗 ─────────────────────────────────────
+const showImportModal = ref(false)
+const importInputText = ref('')
+const importParseResult = ref(null)
+
+function openImportModal() {
+  importInputText.value = ''
+  importParseResult.value = null
+  showImportModal.value = true
+}
+
+function closeImportModal() {
+  showImportModal.value = false
+  importInputText.value = ''
+  importParseResult.value = null
+}
+
+function handleParseImportText() {
+  const result = parseNotebookText(importInputText.value)
+  importParseResult.value = result
+  if (!result.success) {
+    showToast(result.msg)
+  }
+}
+
+function confirmApplyImport() {
+  if (!importParseResult.value || !importParseResult.value.success) {
+    handleParseImportText()
+  }
+  if (!importParseResult.value?.success) return
+
+  store.importPages(importParseResult.value.pages)
+  closeImportModal()
+  showToast(`导入成功！共 ${importParseResult.value.pageCount} 面，${importParseResult.value.wordCount} 个单词`)
+}
+
+// ── 重置出厂底库 ─────────────────────────────────────
+const showResetModal = ref(false)
+
+function confirmResetToFactory() {
+  showResetModal.value = true
+}
+
+function executeReset() {
+  store.resetToFactory()
+  showResetModal.value = false
+  showToast('已重置为最新 37 面出厂数据！')
 }
 
 // ── 导航 ─────────────────────────────────────────────
@@ -746,4 +1078,441 @@ const vLongPress = {
   user-select: none;
 }
 .export-modal-btn:active { opacity: 0.8; }
+
+/* ── 多设备云同步卡片 ─────────── */
+.stats-sync-card {
+  margin: 16px 16px 0;
+  background: #fdfbf6;
+  border-radius: 16px;
+  padding: 16px 18px;
+  border: 1px solid #e8dfc8;
+  box-shadow: 0 2px 8px rgba(44, 36, 22, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.stats-sync-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.stats-sync-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stats-sync-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2c2416;
+}
+.stats-sync-mode-tag {
+  font-size: 11px;
+  background: #eee8dc;
+  color: #7a5c10;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+.stats-sync-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: #f0ebe0;
+  color: #5a4a36;
+}
+.stats-sync-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9b8f7a;
+}
+.stats-sync-badge--synced {
+  background: #e6f4ea;
+  color: #1e7e34;
+}
+.stats-sync-badge--synced .stats-sync-badge-dot {
+  background: #28a745;
+}
+.stats-sync-badge--syncing, .stats-sync-badge--pulling {
+  background: #fff3cd;
+  color: #856404;
+}
+.stats-sync-badge--syncing .stats-sync-badge-dot, .stats-sync-badge--pulling .stats-sync-badge-dot {
+  background: #ffc107;
+  animation: pulse 1s infinite alternate;
+}
+.stats-sync-badge--error {
+  background: #f8d7da;
+  color: #721c24;
+}
+.stats-sync-badge--error .stats-sync-badge-dot {
+  background: #dc3545;
+}
+@keyframes pulse {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
+}
+.stats-sync-info-row {
+  font-size: 13px;
+  color: #8b7355;
+  background: #fbf8f0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border-left: 3px solid #7a5c10;
+}
+.stats-sync-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.stats-sync-btn {
+  flex: 1;
+  min-width: 100px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s;
+}
+.stats-sync-btn:active { opacity: 0.8; }
+.stats-sync-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.stats-sync-btn--primary {
+  background: #7a5c10;
+  color: #fff8e8;
+}
+.stats-sync-btn--secondary {
+  background: #eee8dc;
+  color: #4a3b2c;
+  border: 1px solid #ddd5c0;
+}
+.stats-sync-btn--gear {
+  flex: 0 0 auto;
+  min-width: 0;
+  background: #f0ebe0;
+  color: #5a4a36;
+  border: 1px solid #ddd5c0;
+}
+
+/* ── 备份与迁移 ─────────── */
+.stats-backup-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+}
+.stats-backup-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fbf8f0;
+  border: 1px solid #e8dfc8;
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.stats-backup-btn:active { background: #f0ebe0; }
+.stats-backup-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+.stats-backup-btn-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stats-backup-btn-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2c2416;
+}
+.stats-backup-btn-desc {
+  font-size: 12px;
+  color: #8b7355;
+}
+.stats-backup-btn--danger {
+  border-color: #f0d0d0;
+  background: #fff9f9;
+}
+.stats-backup-btn--danger:active { background: #fbeeed; }
+.stats-backup-btn--danger .stats-backup-btn-title {
+  color: #b02a37;
+}
+
+/* ── 导入弹窗 ─────────── */
+.import-modal {
+  background: #fdfbf6;
+  border-radius: 18px;
+  width: min(380px, 92vw);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 8px 32px rgba(44, 36, 22, 0.2);
+}
+.import-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.import-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #2c2416;
+}
+.import-modal-close {
+  font-size: 18px;
+  color: #8b7355;
+  cursor: pointer;
+  padding: 4px;
+}
+.import-modal-tip {
+  font-size: 13px;
+  color: #6a5845;
+  margin: 0;
+  line-height: 1.5;
+}
+.import-modal-tip code {
+  background: #eee8dc;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+.import-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  font-size: 13px;
+  border: 1px solid #ddd5c0;
+  border-radius: 10px;
+  background: #fff;
+  color: #2c2416;
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+}
+.import-textarea:focus {
+  border-color: #7a5c10;
+}
+.import-result-box {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #e6f4ea;
+  border: 1px solid #b7e1cd;
+  font-size: 13px;
+  color: #1e7e34;
+}
+.import-result-box--err {
+  background: #fce8e6;
+  border-color: #fad2cf;
+  color: #c5221f;
+}
+.import-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+.import-btn {
+  flex: 1;
+  padding: 10px 0;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+.import-btn--parse {
+  background: #eee8dc;
+  color: #4a3b2c;
+  border: 1px solid #ddd5c0;
+}
+.import-btn--confirm {
+  background: #28a745;
+  color: #fff;
+}
+.import-btn--confirm:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+/* ── 重置确认弹窗 ─────────── */
+.confirm-modal {
+  background: #fdfbf6;
+  border-radius: 18px;
+  width: min(320px, 88vw);
+  padding: 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 8px 32px rgba(44, 36, 22, 0.2);
+}
+.confirm-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #b02a37;
+}
+.confirm-modal-text {
+  font-size: 13px;
+  color: #5a4a36;
+  line-height: 1.6;
+  margin: 0;
+}
+.confirm-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+.confirm-btn {
+  flex: 1;
+  padding: 10px 0;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+.confirm-btn--cancel {
+  background: #eee8dc;
+  color: #4a3b2c;
+}
+.confirm-btn--danger {
+  background: #dc3545;
+  color: #fff;
+}
+
+/* ── 同步设置弹窗 ─────────── */
+.sync-settings-modal {
+  background: #fdfbf6;
+  border-radius: 18px;
+  width: min(380px, 92vw);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 8px 32px rgba(44, 36, 22, 0.2);
+}
+.sync-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sync-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #2c2416;
+}
+.sync-modal-close {
+  font-size: 18px;
+  color: #8b7355;
+  cursor: pointer;
+  padding: 4px;
+}
+.sync-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sync-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sync-field-group--switch {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 6px;
+  border-top: 1px solid #f0ebe0;
+}
+.sync-field-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4a3b2c;
+}
+.sync-field-hint {
+  font-size: 11px;
+  color: #8b7355;
+  line-height: 1.4;
+}
+.sync-field-val {
+  font-size: 12px;
+  color: #2c2416;
+  font-family: monospace;
+  background: #eee8dc;
+  padding: 4px 6px;
+  border-radius: 6px;
+  word-break: break-all;
+}
+.sync-mode-selector {
+  display: flex;
+  gap: 8px;
+}
+.sync-mode-option {
+  flex: 1;
+  padding: 10px 8px;
+  border-radius: 10px;
+  border: 1.5px solid #ddd5c0;
+  background: #fbf8f0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: all 0.15s;
+}
+.sync-mode-option.active {
+  border-color: #7a5c10;
+  background: #f5eedf;
+}
+.sync-mode-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c2416;
+}
+.sync-mode-sub {
+  font-size: 10px;
+  color: #8b7355;
+}
+.sync-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  font-size: 13px;
+  border: 1px solid #ddd5c0;
+  border-radius: 8px;
+  background: #fff;
+  outline: none;
+}
+.sync-input:focus {
+  border-color: #7a5c10;
+}
+.sync-switch {
+  width: 20px;
+  height: 20px;
+  accent-color: #7a5c10;
+  cursor: pointer;
+}
+.sync-modal-actions {
+  margin-top: 4px;
+}
+.sync-modal-btn--save {
+  width: 100%;
+  padding: 11px 0;
+  border-radius: 12px;
+  background: #7a5c10;
+  color: #fff8e8;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
 </style>
+

@@ -5,7 +5,7 @@
       "destination": "https://dict.youdao.com/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]

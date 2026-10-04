@@ -58,8 +58,12 @@
     <!-- 页码信息 -->
     <div class="nb-info-bar">
       <span class="nb-info-text">
-        第 {{ currentPage + 1 }} 页 · 共 {{ store.pages.length }} 页 · {{ store.totalWords }} 个单词
+        第 {{ currentPage + 1 }} 页 · 共 {{ store.pages.length }} 页 · {{ store.totalWords }} 词
       </span>
+      <div class="nb-sync-pill" :class="'nb-sync-pill--' + syncState.status" @click="goToStats" :title="syncState.message">
+        <span class="nb-sync-dot"></span>
+        <span class="nb-sync-text">{{ syncPillText }}</span>
+      </div>
     </div>
 
     <!-- 单词本翻页 -->
@@ -202,10 +206,22 @@ import { ref, computed, onMounted, nextTick, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNotebookStore } from '../store/notebook.js'
 import DictModal from '../components/DictModal.vue'
+import { syncState } from '../utils/sync.js'
 
 const store = useNotebookStore()
 const router = useRouter()
 const showToast = inject('showToast')
+
+const syncPillText = computed(() => {
+  switch (syncState.status) {
+    case 'synced': return '云端已同步'
+    case 'syncing': return '正在上传'
+    case 'pulling': return '拉取中'
+    case 'error': return '未同步'
+    case 'unconfigured': return '本地存储'
+    default: return '本地'
+  }
+})
 
 // ── 查词弹窗状态 ────────────────────────────────────
 const showDictModal = ref(false)
@@ -639,11 +655,65 @@ function goToStats() {
   padding: 3px 12px 4px;
   border-bottom: 1px solid #cfc5ae;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 .nb-info-text {
   font-size: 12px;
   color: #8b7355;
   letter-spacing: 0.3px;
+}
+.nb-sync-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #ded7c6;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.15s;
+}
+.nb-sync-pill:active { opacity: 0.7; }
+.nb-sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #9b8f7a;
+}
+.nb-sync-text {
+  font-size: 11px;
+  color: #6a5845;
+  font-weight: 500;
+}
+.nb-sync-pill--synced {
+  background: #d4ebd8;
+}
+.nb-sync-pill--synced .nb-sync-dot {
+  background: #28a745;
+}
+.nb-sync-pill--synced .nb-sync-text {
+  color: #1e7e34;
+}
+.nb-sync-pill--syncing, .nb-sync-pill--pulling {
+  background: #fff0c7;
+}
+.nb-sync-pill--syncing .nb-sync-dot, .nb-sync-pill--pulling .nb-sync-dot {
+  background: #ffc107;
+  animation: pulse 1s infinite alternate;
+}
+.nb-sync-pill--syncing .nb-sync-text, .nb-sync-pill--pulling .nb-sync-text {
+  color: #856404;
+}
+.nb-sync-pill--error {
+  background: #fadcd9;
+}
+.nb-sync-pill--error .nb-sync-dot {
+  background: #dc3545;
+}
+.nb-sync-pill--error .nb-sync-text {
+  color: #721c24;
 }
 
 /* ── 翻页主体 ────────────────────────────────────────── */
