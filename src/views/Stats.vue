@@ -589,9 +589,9 @@ async function handleManualPull() {
   if (isSyncing.value) return
   isPulling.value = true
   try {
-    const res = await store.syncService?.pullFromCloud(false)
+    const res = await store.syncService?.pullFromCloud(false, true)
     if (res?.success) {
-      showToast('已从云端拉取最新数据！')
+      showToast('已强制从云端拉取最新数据！')
     } else if (res?.reason === 'unconfigured') {
       showToast('云端尚未绑定数据库')
     } else {

@@ -174,14 +174,23 @@ export class CloudSyncService {
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && syncState.autoSync) {
-          this.pullFromCloud(true)
+          this.pullFromCloud(true, false)
         }
       })
       window.addEventListener('focus', () => {
         if (syncState.autoSync) {
-          this.pullFromCloud(true)
+          this.pullFromCloud(true, false)
         }
       })
+    }
+
+    // 前台定时轮询（每 20 秒检查一次云端更新，保证两台设备同时开着时也能同步）
+    if (typeof window !== 'undefined') {
+      setInterval(() => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'visible' && syncState.autoSync) {
+          this.pullFromCloud(true, false)
+        }
+      }, 20000)
     }
   }
 
@@ -195,7 +204,7 @@ export class CloudSyncService {
   }
 
   // 从云端拉取数据
-  async pullFromCloud(silent = false) {
+  async pullFromCloud(silent = false, force = false) {
     if (!silent) syncState.status = 'pulling'
 
     try {
@@ -220,7 +229,7 @@ export class CloudSyncService {
       }
 
       if (!cloudData || !Array.isArray(cloudData.pages) || cloudData.pages.length === 0) {
-        // 云端没有数据，自动将本地初始数据推上去
+        // 云端尚无有效数据，将本地数据推送到云端初始化
         await this.pushToCloud(true)
         syncState.status = 'synced'
         syncState.lastSyncTime = Date.now()
@@ -228,17 +237,16 @@ export class CloudSyncService {
         return { success: true, action: 'pushed_initial' }
       }
 
-      // 对比时间戳，避免旧数据冲掉新数据
       const localUpdated = this.store.updatedAt || 0
       const cloudUpdated = cloudData.updatedAt || 0
 
-      if (cloudUpdated > localUpdated) {
-        // 云端更新，更新本地 store
+      // 如果强制拉取，或者云端时间戳比本地更新
+      if (force || cloudUpdated > localUpdated) {
         this.store.applyCloudData(cloudData)
         syncState.status = 'synced'
         syncState.lastSyncTime = Date.now()
         syncState.message = `已从云端同步 (${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })})`
-        return { success: true, action: 'pulled' }
+        return { success: true, action: 'pulled', pagesCount: cloudData.pages.length }
       } else if (localUpdated > cloudUpdated) {
         // 本地更新，推送到云端
         await this.pushToCloud(true)

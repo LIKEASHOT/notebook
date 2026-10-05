@@ -19,9 +19,10 @@ export function loadStorage() {
   }
 
   // 首次打开或从旧版本升级：采用 data.txt 解析的最新 37 面数据
+  // 注意：初始时间戳必须为历史固定基准时间，绝不能是 Date.now()，否则会阻碍新设备从云端拉取更新
   const initialData = {
     version: 4,
-    updatedAt: Date.now(),
+    updatedAt: 1728038897000,
     pages: JSON.parse(JSON.stringify(initialPages))
   }
   saveStorage(initialData)
