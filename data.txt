@@ -1,5 +1,5 @@
 ===== 单词本数据导出 =====
-导出时间：2026/10/5 10:42:52
+导出时间：2026/10/5 10:45:55
 总页数：38，总单词数：583
 
 ——— 第 1 面（16/16 个单词）———
@@ -620,7 +620,7 @@
   ban
   fix
 
-——— 第 36 面（15/16 个单词）———
+——— 第 36 面（16/16 个单词）———
   edit
   sereve
   remind
@@ -636,9 +636,9 @@
   passion
   replace
   do + v
+  particular
 
 ——— 第 37 面（16/16 个单词）———
-  particular
   desperate
   confused
   option
@@ -654,9 +654,9 @@
   recover
   taste
   merry
-
-——— 第 38 面（4/16 个单词）———
   wise wisdom
+
+——— 第 38 面（3/16 个单词）———
   pocket
   major
   compare
