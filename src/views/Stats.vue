@@ -82,19 +82,35 @@
       </div>
 
       <!-- 有圆圈标记的单词 -->
-      <div class="stats-section" v-if="store.allForgotten.length > 0">
+      <div class="stats-section" v-if="examList.length > 0">
         <div class="stats-section-header">
-          <span class="stats-section-title">有圆圈标记的单词（{{ store.allForgotten.length }} 个）</span>
+          <div class="stats-section-header-left">
+            <span class="stats-section-title">有圆圈标记的单词（{{ examList.length }} 个）</span>
+            <span v-if="sessionMarkedSet.size > 0" class="stats-marked-summary">
+              本次记错 {{ sessionMarkedSet.size }} 词
+            </span>
+          </div>
+          <span class="stats-section-hint">点击圆圈打点 · 本次顺序固定</span>
         </div>
         <div
           class="stats-forgotten-row"
-          v-for="(item, i) in store.allForgotten"
-          :key="item.text + '_' + i"
+          v-for="(item, i) in examList"
+          :key="item.text + '_' + item.pageIdx + '_' + item.slotIdx"
+          :class="{ 'stats-forgotten-row--marked': isSessionMarked(item) }"
         >
           <span class="stats-rank">{{ i + 1 }}</span>
-          <span class="stats-forgotten-word">{{ item.text }}</span>
-          <!-- 可点击的圆圈区，点击增加次数，不立即重排序 -->
-          <div class="stats-dots-wrap" @click="store.addForgottenCircle(item)">
+          <div class="stats-forgotten-word-wrap">
+            <span class="stats-forgotten-word">{{ item.text }}</span>
+            <span v-if="isSessionMarked(item)" class="stats-marked-tag">本次已记错</span>
+          </div>
+          <!-- 可点击的圆圈区，点击增加次数，位置保持不变 -->
+          <div
+            class="stats-dots-wrap"
+            @click.stop="onExamCircleClick(item)"
+            @contextmenu.prevent="onExamCircleReduce(item)"
+            v-long-press="() => onExamCircleReduce(item)"
+            title="点击增加圆圈，长按可撤销"
+          >
             <div v-for="c in Math.min(item.circles, 20)" :key="c" class="stats-dot"></div>
             <span v-if="item.circles > 20" class="stats-dot-overflow">+{{ item.circles - 20 }}</span>
           </div>
@@ -103,7 +119,7 @@
         </div>
       </div>
 
-      <div v-if="store.allForgotten.length === 0" class="stats-empty">
+      <div v-if="examList.length === 0" class="stats-empty">
         <span class="stats-empty-text">还没有单词添加圆圈标记</span>
       </div>
 
@@ -158,15 +174,6 @@
             <div class="stats-backup-btn-texts">
               <span class="stats-backup-btn-title">导入文本数据</span>
               <span class="stats-backup-btn-desc">粘贴 data.txt 文本，一键解析并同步替换当前词库</span>
-            </div>
-          </div>
-
-          <!-- 恢复出厂 38 面数据 -->
-          <div class="stats-backup-btn stats-backup-btn--danger" @click="confirmResetToFactory">
-            <span class="stats-backup-icon">🔄</span>
-            <div class="stats-backup-btn-texts">
-              <span class="stats-backup-btn-title">重置恢复为最新 38 面底库</span>
-              <span class="stats-backup-btn-desc">恢复至位移调整后的 583 词及 284 处复习打点</span>
             </div>
           </div>
         </div>
@@ -285,22 +292,6 @@
       </div>
     </Teleport>
 
-    <!-- 重置出厂确认弹窗 -->
-    <Teleport to="body">
-      <div v-if="showResetModal" class="nb-overlay" @click.self="showResetModal = false">
-        <div class="confirm-modal" @click.stop>
-          <span class="confirm-modal-title">⚠️ 重置底库确认</span>
-          <p class="confirm-modal-text">
-            确定要将当前所有页面恢复为最新的 38 面（包含 583 个单词及 284 处复习打点）吗？<br/>
-            该操作将以平移 12 格调整后的最新数据为准重置，并推送到云端。
-          </p>
-          <div class="confirm-modal-actions">
-            <button class="confirm-btn confirm-btn--cancel" @click="showResetModal = false">取消</button>
-            <button class="confirm-btn confirm-btn--danger" @click="executeReset">确定重置</button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
 
     <!-- 云端同步设置弹窗 -->
     <Teleport to="body">
@@ -394,7 +385,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, inject } from 'vue'
+import { ref, reactive, computed, inject, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNotebookStore } from '../store/notebook.js'
 import DictModal from '../components/DictModal.vue'
@@ -406,6 +397,47 @@ const router = useRouter()
 const showToast = inject('showToast')
 
 store.init()
+
+// ── 本次考核列表（进入时固化顺序，点击不立即跳动，离开重新进入才刷新排序） ──
+const examList = ref([])
+// 记录本次会话中被打点的单词 key: `${pageIdx}_${slotIdx}`
+const sessionMarkedSet = ref(new Set())
+
+function initExamList() {
+  examList.value = store.allForgotten.map(item => ({
+    ...item,
+    initialCircles: item.circles
+  }))
+  sessionMarkedSet.value = new Set()
+}
+
+onMounted(() => {
+  initExamList()
+})
+
+function isSessionMarked(item) {
+  return sessionMarkedSet.value.has(`${item.pageIdx}_${item.slotIdx}`)
+}
+
+// 点击圆圈：+1 并标记高亮，不改变行排序
+function onExamCircleClick(item) {
+  store.addCircle(item.pageIdx, item.slotIdx)
+  item.circles++
+  const key = `${item.pageIdx}_${item.slotIdx}`
+  sessionMarkedSet.value.add(key)
+}
+
+// 长按或右键：撤销圆圈打点
+function onExamCircleReduce(item) {
+  if (item.circles > 0) {
+    store.removeCircle(item.pageIdx, item.slotIdx)
+    item.circles--
+    const key = `${item.pageIdx}_${item.slotIdx}`
+    if (item.circles <= item.initialCircles) {
+      sessionMarkedSet.value.delete(key)
+    }
+  }
+}
 
 // ── 查词弹窗状态 ────────────────────────────────────
 const showDictModal = ref(false)
@@ -660,18 +692,6 @@ function confirmApplyImport() {
   showToast(`导入成功！共 ${importParseResult.value.pageCount} 面，${importParseResult.value.wordCount} 个单词`)
 }
 
-// ── 重置出厂底库 ─────────────────────────────────────
-const showResetModal = ref(false)
-
-function confirmResetToFactory() {
-  showResetModal.value = true
-}
-
-function executeReset() {
-  store.resetToFactory()
-  showResetModal.value = false
-  showToast('已重置为最新 38 面出厂数据！')
-}
 
 // ── 导航 ─────────────────────────────────────────────
 function goBack() {
@@ -889,26 +909,75 @@ const vLongPress = {
   border: 1px solid #e8dfc8;
 }
 .stats-section-header {
-  padding: 14px 18px 10px;
+  padding: 12px 18px 10px;
   border-bottom: 1px solid #f0ebe0;
   background: #f8f4ec;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.stats-section-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .stats-section-title { font-size: 14px; font-weight: 600; color: #5a4a36; }
+.stats-marked-summary {
+  font-size: 11px;
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.stats-section-hint {
+  font-size: 11px;
+  color: #a89f91;
+  font-weight: normal;
+}
 .stats-forgotten-row {
   display: flex;
   align-items: center;
   padding: 10px 14px;
   border-bottom: 1px solid #f0ebe0;
   gap: 10px;
+  transition: background-color 0.25s, border-left-color 0.25s;
 }
 .stats-forgotten-row:last-child { border-bottom: none; }
+.stats-forgotten-row--marked {
+  background: #fff8eb !important;
+  border-left: 4px solid #d97706;
+}
+.stats-forgotten-row--marked .stats-rank {
+  color: #d97706;
+  font-weight: 700;
+}
+.stats-forgotten-row--marked .stats-forgotten-word {
+  color: #92400e;
+  font-weight: 600;
+}
 .stats-rank { font-size: 12px; color: #b8a98a; width: 20px; text-align: center; flex-shrink: 0; }
+.stats-forgotten-word-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 120px;
+  flex-shrink: 0;
+}
 .stats-forgotten-word {
   font-family: Georgia, 'Times New Roman', serif;
   font-size: 14px;
   color: #2c2416;
-  min-width: 120px;
-  flex-shrink: 0;
+}
+.stats-marked-tag {
+  font-size: 10px;
+  background: #fed7aa;
+  color: #9a3412;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
 }
 .stats-dots-wrap {
   flex: 1;
@@ -1239,14 +1308,6 @@ const vLongPress = {
   font-size: 12px;
   color: #8b7355;
 }
-.stats-backup-btn--danger {
-  border-color: #f0d0d0;
-  background: #fff9f9;
-}
-.stats-backup-btn--danger:active { background: #fbeeed; }
-.stats-backup-btn--danger .stats-backup-btn-title {
-  color: #b02a37;
-}
 
 /* ── 导入弹窗 ─────────── */
 .import-modal {
@@ -1344,50 +1405,6 @@ const vLongPress = {
   cursor: not-allowed;
 }
 
-/* ── 重置确认弹窗 ─────────── */
-.confirm-modal {
-  background: #fdfbf6;
-  border-radius: 18px;
-  width: min(320px, 88vw);
-  padding: 22px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  box-shadow: 0 8px 32px rgba(44, 36, 22, 0.2);
-}
-.confirm-modal-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #b02a37;
-}
-.confirm-modal-text {
-  font-size: 13px;
-  color: #5a4a36;
-  line-height: 1.6;
-  margin: 0;
-}
-.confirm-modal-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 6px;
-}
-.confirm-btn {
-  flex: 1;
-  padding: 10px 0;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-}
-.confirm-btn--cancel {
-  background: #eee8dc;
-  color: #4a3b2c;
-}
-.confirm-btn--danger {
-  background: #dc3545;
-  color: #fff;
-}
 
 /* ── 同步设置弹窗 ─────────── */
 .sync-settings-modal {
