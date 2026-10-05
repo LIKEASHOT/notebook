@@ -1,6 +1,6 @@
-﻿===== 单词本数据导出 =====
-导出时间：2026/10/4 18:48:17
-总页数：37，总单词数：582
+===== 单词本数据导出 =====
+导出时间：2026/10/5 10:42:52
+总页数：38，总单词数：583
 
 ——— 第 1 面（16/16 个单词）———
   used to
@@ -613,12 +613,14 @@
   spend
   electricity
 
-——— 第 35 面（16/16 个单词）———
+——— 第 35 面（5/16 个单词）———
   solar
   persuade
   discount
   ban
   fix
+
+——— 第 36 面（15/16 个单词）———
   edit
   sereve
   remind
@@ -630,12 +632,12 @@
   organize
   treat
   opportunity
-
-——— 第 36 面（16/16 个单词）———
   modest
   passion
   replace
   do + v
+
+——— 第 37 面（16/16 个单词）———
   particular
   desperate
   confused
@@ -648,12 +650,12 @@
   thick
   prejudice
   mission
-
-——— 第 37 面（7/16 个单词）———
   send
   recover
   taste
   merry
+
+——— 第 38 面（4/16 个单词）———
   wise wisdom
   pocket
   major

@@ -161,12 +161,12 @@
             </div>
           </div>
 
-          <!-- 恢复出厂 37 面数据 -->
+          <!-- 恢复出厂 38 面数据 -->
           <div class="stats-backup-btn stats-backup-btn--danger" @click="confirmResetToFactory">
             <span class="stats-backup-icon">🔄</span>
             <div class="stats-backup-btn-texts">
-              <span class="stats-backup-btn-title">重置恢复为最新 37 面底库</span>
-              <span class="stats-backup-btn-desc">恢复至 data.txt 对应的 583 词及 284 处复习打点</span>
+              <span class="stats-backup-btn-title">重置恢复为最新 38 面底库</span>
+              <span class="stats-backup-btn-desc">恢复至位移调整后的 583 词及 284 处复习打点</span>
             </div>
           </div>
         </div>
@@ -291,8 +291,8 @@
         <div class="confirm-modal" @click.stop>
           <span class="confirm-modal-title">⚠️ 重置底库确认</span>
           <p class="confirm-modal-text">
-            确定要将当前所有页面恢复为最新的 37 面（包含 583 个单词及 284 处复习打点）吗？<br/>
-            该操作将以 data.txt 为准重置当前数据，并推送到云端。
+            确定要将当前所有页面恢复为最新的 38 面（包含 583 个单词及 284 处复习打点）吗？<br/>
+            该操作将以平移 12 格调整后的最新数据为准重置，并推送到云端。
           </p>
           <div class="confirm-modal-actions">
             <button class="confirm-btn confirm-btn--cancel" @click="showResetModal = false">取消</button>
@@ -670,7 +670,7 @@ function confirmResetToFactory() {
 function executeReset() {
   store.resetToFactory()
   showResetModal.value = false
-  showToast('已重置为最新 37 面出厂数据！')
+  showToast('已重置为最新 38 面出厂数据！')
 }
 
 // ── 导航 ─────────────────────────────────────────────

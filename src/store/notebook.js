@@ -62,7 +62,7 @@ export const useNotebookStore = defineStore('notebook', {
       this.save()
     },
 
-    // 重置恢复到内置 37 面最新底库 (data.txt)
+    // 重置恢复到内置 38 面最新底库 (data.txt)
     resetToFactory() {
       const fresh = resetToInitialData()
       this.pages = fresh.pages
