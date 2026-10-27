@@ -77,3 +77,64 @@ export function resetToInitialData() {
   saveStorage(freshData)
   return freshData
 }
+
+// 全盘扫描本地可能存在的所有历史版本和备份，用于打捞找回意外被覆写的打点
+export function scanLocalHistory() {
+  const candidates = []
+  const keysToCheck = [
+    BACKUP_KEY_V7,
+    STORAGE_KEY_V7,
+    'vocab_notebook_v6',
+    'vocab_notebook_v5',
+    'vocab_notebook_v4',
+    'vocab_notebook_v3',
+    'vocab_notebook'
+  ]
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && k.startsWith('vocab_') && !keysToCheck.includes(k) && !k.includes('config')) {
+        keysToCheck.push(k)
+      }
+    }
+  } catch (e) {}
+
+  for (const k of keysToCheck) {
+    try {
+      const raw = localStorage.getItem(k)
+      if (!raw) continue
+      const parsed = JSON.parse(raw)
+      const pages = parsed.pages || (Array.isArray(parsed) ? parsed : null)
+      if (Array.isArray(pages) && pages.length >= 10) {
+        let totalWords = 0
+        let totalCircles = 0
+        pages.forEach(p => {
+          (p.words || []).forEach(w => {
+            if (w.text) totalWords++
+            if (w.circles > 0) totalCircles += (w.circles || 0)
+          })
+        })
+        candidates.push({
+          key: k,
+          version: parsed.version || '历史版本',
+          updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : null,
+          totalWords,
+          totalCircles,
+          pages
+        })
+      }
+    } catch (e) {}
+  }
+
+  // 排序：圆圈打点越多、时间越新的排在前面
+  candidates.sort((a, b) => {
+    if (b.totalCircles !== a.totalCircles) {
+      return b.totalCircles - a.totalCircles
+    }
+    return (b.updatedAt || 0) - (a.updatedAt || 0)
+  })
+
+  return candidates
+}
+

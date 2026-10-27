@@ -176,8 +176,18 @@
               <span class="stats-backup-btn-desc">选择 txt 文件或粘贴文本，一键解析并替换当前词库</span>
             </div>
           </div>
+
+          <!-- 历史打捞按钮 -->
+          <div class="stats-backup-btn" @click="openHistoryModal">
+            <span class="stats-backup-icon">🔍</span>
+            <div class="stats-backup-btn-texts">
+              <span class="stats-backup-btn-title">打捞历史打点</span>
+              <span class="stats-backup-btn-desc">扫描本机各版本历史缓存，一键找回遗失圆圈打点</span>
+            </div>
+          </div>
         </div>
       </div>
+
 
       <div class="stats-bottom-spacer"></div>
     </div>
@@ -303,6 +313,56 @@
       </div>
     </Teleport>
 
+    <!-- 历史打点打捞与恢复弹窗 -->
+    <Teleport to="body">
+      <div v-if="showHistoryModal" class="nb-overlay" @click.self="showHistoryModal = false">
+        <div class="history-modal" @click.stop>
+          <div class="history-modal-header">
+            <span class="history-modal-title">🔍 本机历史缓存与打点打捞</span>
+            <span class="history-modal-close" @click="showHistoryModal = false">✕</span>
+          </div>
+
+          <div class="history-modal-body">
+            <p class="history-modal-tip">
+              💡 只要没有手动在浏览器中执行“清除网站数据”，之前的打点历史极大概率仍保存在本机中。系统已自动检索出以下备份记录：
+            </p>
+
+            <div v-if="historyCandidates.length === 0" class="history-empty">
+              <span>⚠️ 未在当前浏览器中检索到其他历史记录</span>
+            </div>
+
+            <div v-else class="history-candidate-list">
+              <div
+                v-for="(item, idx) in historyCandidates"
+                :key="idx"
+                class="history-candidate-card"
+                :class="{ 'history-candidate-card--best': idx === 0 && item.totalCircles > currentTotalCircles }"
+              >
+                <div class="history-card-header">
+                  <span class="history-card-key">{{ item.key }}</span>
+                  <span v-if="idx === 0 && item.totalCircles > currentTotalCircles" class="history-badge-best">🌟 标记最多（推荐找回）</span>
+                  <span v-else-if="item.key === 'vocab_notebook_v7'" class="history-badge-cur">当前生效版本</span>
+                </div>
+                <div class="history-card-stats">
+                  <span>总词数: <b>{{ item.totalWords }}</b></span>
+                  <span>打点圆圈: <b>{{ item.totalCircles }}</b> 处</span>
+                  <span v-if="item.updatedAt">更新时间: {{ formatHistoryTime(item.updatedAt) }}</span>
+                </div>
+                <div class="history-card-actions">
+                  <button
+                    class="history-restore-btn"
+                    :class="{ 'history-restore-btn--primary': item.totalCircles >= currentTotalCircles }"
+                    @click="applyHistoricalData(item)"
+                  >
+                    <span>一键恢复此版本并同步</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- 云端同步设置弹窗 -->
     <Teleport to="body">
@@ -402,6 +462,7 @@ import { useNotebookStore } from '../store/notebook.js'
 import DictModal from '../components/DictModal.vue'
 import { syncState, saveSyncConfig } from '../utils/sync.js'
 import { parseNotebookText } from '../utils/importer.js'
+import { scanLocalHistory } from '../utils/storage.js'
 
 const store = useNotebookStore()
 const router = useRouter()
@@ -737,6 +798,39 @@ function confirmApplyImport() {
   showToast(`导入成功！共 ${importParseResult.value.pageCount} 面，${importParseResult.value.wordCount} 个单词`)
 }
 
+// ── 历史打点打捞与恢复 ─────────────────────────────────
+const showHistoryModal = ref(false)
+const historyCandidates = ref([])
+
+const currentTotalCircles = computed(() => {
+  return (store.pages || []).reduce(
+    (sum, p) => sum + (p.words || []).reduce((s, w) => s + (w.circles || 0), 0),
+    0
+  )
+})
+
+function openHistoryModal() {
+  historyCandidates.value = scanLocalHistory()
+  showHistoryModal.value = true
+}
+
+function formatHistoryTime(ts) {
+  if (!ts) return ''
+  try {
+    const d = new Date(ts)
+    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  } catch (e) {
+    return ''
+  }
+}
+
+function applyHistoricalData(item) {
+  if (!item || !Array.isArray(item.pages)) return
+  store.importPages(item.pages)
+  showHistoryModal.value = false
+  initExamList()
+  showToast(`已成功恢复历史打点记录（共 ${item.totalCircles} 处标记），并同步至云端！`)
+}
 
 // ── 导航 ─────────────────────────────────────────────
 function goBack() {
@@ -1591,6 +1685,142 @@ const vLongPress = {
   font-weight: 600;
   border: none;
   cursor: pointer;
+}
+
+/* 历史打捞弹窗样式 */
+.history-modal {
+  width: 90%;
+  max-width: 520px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: #fbf8f0;
+  border-radius: 20px;
+  border: 1.5px solid #d4c5a9;
+  box-shadow: 0 16px 40px rgba(74, 59, 44, 0.22);
+  overflow: hidden;
+  animation: modalIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.history-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e8dfcf;
+  background: #f4ede0;
+}
+.history-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #4a3b2c;
+}
+.history-modal-close {
+  font-size: 18px;
+  color: #8b7355;
+  cursor: pointer;
+  padding: 4px;
+}
+.history-modal-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.history-modal-tip {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #7a5c10;
+  background: #fdf3dc;
+  border: 1px solid #ebd39c;
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+.history-empty {
+  text-align: center;
+  padding: 30px 10px;
+  font-size: 13px;
+  color: #8b7355;
+}
+.history-candidate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.history-candidate-card {
+  background: #fff;
+  border: 1.5px solid #e0d5be;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 2px 6px rgba(74, 59, 44, 0.05);
+}
+.history-candidate-card--best {
+  border-color: #2e7d32;
+  background: #f6fbf6;
+}
+.history-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.history-card-key {
+  font-family: monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #3e3328;
+}
+.history-badge-best {
+  font-size: 11px;
+  font-weight: 700;
+  color: #2e7d32;
+  background: #e8f5e9;
+  border: 1px solid #a5d6a7;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.history-badge-cur {
+  font-size: 11px;
+  font-weight: 600;
+  color: #7a5c10;
+  background: #fdf3dc;
+  border: 1px solid #ebd39c;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.history-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: #6a5745;
+}
+.history-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.history-restore-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #b8a98a;
+  background: #f4ede0;
+  color: #4a3b2c;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.history-restore-btn--primary {
+  background: #2e7d32;
+  border-color: #2e7d32;
+  color: #fff;
+}
+.history-restore-btn:active {
+  transform: scale(0.98);
 }
 </style>
 
