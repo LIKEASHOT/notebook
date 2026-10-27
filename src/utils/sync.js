@@ -228,27 +228,54 @@ export class CloudSyncService {
         }
       }
 
-      if (!cloudData || !Array.isArray(cloudData.pages) || cloudData.pages.length === 0) {
-        // 云端尚无有效数据，将本地数据推送到云端初始化
-        await this.pushToCloud(true)
+      const hasCloudData = cloudData && Array.isArray(cloudData.pages) && cloudData.pages.length > 0
+
+      // 计算云端与本地的有效打点数量
+      const cloudCircles = hasCloudData
+        ? cloudData.pages.reduce((sum, p) => sum + (p.words || []).reduce((s, w) => s + (w.circles || 0), 0), 0)
+        : 0
+      const localCircles = this.store.pages.reduce(
+        (sum, p) => sum + (p.words || []).reduce((s, w) => s + (w.circles || 0), 0),
+        0
+      )
+
+      const localUpdated = typeof this.store.updatedAt === 'number' ? this.store.updatedAt : 0
+      const cloudUpdated = typeof cloudData?.updatedAt === 'number' ? cloudData.updatedAt : 0
+      const isLocalVirgin = this.store.isDefault === true || localUpdated <= 1000
+
+      if (!hasCloudData) {
+        // 云端尚无数据，且本地已真正有过修改时才初始化云端
+        if (!isLocalVirgin || localCircles > 0) {
+          await this.pushToCloud(true)
+          syncState.status = 'synced'
+          syncState.lastSyncTime = Date.now()
+          syncState.message = '已初始化云端并同步'
+          return { success: true, action: 'pushed_initial' }
+        }
         syncState.status = 'synced'
-        syncState.lastSyncTime = Date.now()
-        syncState.message = '已初始化云端并同步'
-        return { success: true, action: 'pushed_initial' }
+        syncState.message = '云端为空，等待本地录入'
+        return { success: true, action: 'none' }
       }
 
-      const localUpdated = this.store.updatedAt || 0
-      const cloudUpdated = cloudData.updatedAt || 0
+      // 核心防洗白判定：
+      // 1. 如果用户手动点“强制从云端拉取更新” (force)
+      // 2. 如果本地是出厂状态 (isLocalVirgin)
+      // 3. 如果本地圆圈数为 0，而云端圆圈数 > 0（绝不允许用未打点的空状态冲毁有打点记录的云端！）
+      // 4. 如果云端时间戳较新 (cloudUpdated > localUpdated)
+      const shouldPull =
+        force ||
+        isLocalVirgin ||
+        (localCircles === 0 && cloudCircles > 0) ||
+        cloudUpdated > localUpdated
 
-      // 如果强制拉取，或者云端时间戳比本地更新
-      if (force || cloudUpdated > localUpdated) {
+      if (shouldPull) {
         this.store.applyCloudData(cloudData)
         syncState.status = 'synced'
         syncState.lastSyncTime = Date.now()
         syncState.message = `已从云端同步 (${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })})`
         return { success: true, action: 'pulled', pagesCount: cloudData.pages.length }
-      } else if (localUpdated > cloudUpdated) {
-        // 本地更新，推送到云端
+      } else if (localUpdated > cloudUpdated && !isLocalVirgin) {
+        // 只有本地真实修改过且时间戳更新，才允许推送上云
         await this.pushToCloud(true)
         return { success: true, action: 'pushed_newer' }
       } else {
@@ -267,6 +294,12 @@ export class CloudSyncService {
 
   // 推送本地数据到云端
   async pushToCloud(silent = false) {
+    // 终极安全防线：若本地是出厂默认未修改状态，严禁推送覆盖云端
+    if (this.store.isDefault === true && (this.store.updatedAt || 0) <= 1000) {
+      console.warn('拦截向云端推送出厂默认状态')
+      return { success: false, reason: 'virgin_blocked' }
+    }
+
     if (!silent) syncState.status = 'syncing'
 
     try {
@@ -289,6 +322,7 @@ export class CloudSyncService {
       }
 
       this.store.updatedAt = payload.updatedAt
+      this.store.isDefault = false
       this.store.saveLocalOnly()
 
       syncState.status = 'synced'

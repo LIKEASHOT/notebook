@@ -1,26 +1,42 @@
 // localStorage 持久化封装与版本迁移管理
 import initialPages from '../data/initialPages.json'
 
-const STORAGE_KEY_V6 = 'vocab_notebook_v6'
+const STORAGE_KEY_V7 = 'vocab_notebook_v7'
+const BACKUP_KEY_V7 = 'vocab_notebook_backup_v7'
 
 export function loadStorage() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_V6)
+    const raw = localStorage.getItem(STORAGE_KEY_V7)
     if (raw) {
       const parsed = JSON.parse(raw)
-      // 如果数据有效且包含至少 38 面（compare 在第 38 面第 3 格的完整数据），正常加载
+      // 如果数据有效且包含至少 38 面，正常加载
       if (parsed && Array.isArray(parsed.pages) && parsed.pages.length >= 38) {
         return parsed
       }
     }
   } catch (e) {
-    console.error('读取 v6 本地缓存失败:', e)
+    console.error('读取 v7 本地缓存失败:', e)
   }
 
-  // 首次打开或升级：采用 compare 在 38 面第 3 格的最新排布，并以最新时间戳推送到云端
+  // 检查是否有本地历史有效备份（优先使用本地有打点记录的备份）
+  try {
+    const backupRaw = localStorage.getItem(BACKUP_KEY_V7)
+    if (backupRaw) {
+      const backupParsed = JSON.parse(backupRaw)
+      if (backupParsed && Array.isArray(backupParsed.pages) && backupParsed.pages.length >= 38) {
+        saveStorage(backupParsed)
+        return backupParsed
+      }
+    }
+  } catch (e) {}
+
+  // 首次打开：采用出厂 38 面纯净数据
+  // 注意：初始时间戳必须是固定极小值 1，且标记 isDefault = true
+  // 严禁设为 Date.now()，否则会假装成“最新数据”而覆灭云端！
   const initialData = {
-    version: 6,
-    updatedAt: Date.now(),
+    version: 7,
+    updatedAt: 1,
+    isDefault: true,
     pages: JSON.parse(JSON.stringify(initialPages))
   }
   saveStorage(initialData)
@@ -30,11 +46,21 @@ export function loadStorage() {
 export function saveStorage(data) {
   try {
     const payload = {
-      version: 6,
-      updatedAt: data.updatedAt || Date.now(),
+      version: 7,
+      updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : Date.now(),
+      isDefault: data.isDefault === true,
       pages: data.pages
     }
-    localStorage.setItem(STORAGE_KEY_V6, JSON.stringify(payload))
+    localStorage.setItem(STORAGE_KEY_V7, JSON.stringify(payload))
+
+    // 如果当前数据包含有效打点，自动保留一份坚不可摧的本地镜像备份
+    const circleCount = (payload.pages || []).reduce(
+      (sum, p) => sum + (p.words || []).reduce((s, w) => s + (w.circles || 0), 0),
+      0
+    )
+    if (circleCount > 0) {
+      localStorage.setItem(BACKUP_KEY_V7, JSON.stringify(payload))
+    }
   } catch (e) {
     console.error('本地保存失败:', e)
   }
@@ -43,8 +69,9 @@ export function saveStorage(data) {
 // 强制重置为内置的最新 38 面底库数据
 export function resetToInitialData() {
   const freshData = {
-    version: 6,
+    version: 7,
     updatedAt: Date.now(),
+    isDefault: false,
     pages: JSON.parse(JSON.stringify(initialPages))
   }
   saveStorage(freshData)

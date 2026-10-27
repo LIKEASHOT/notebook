@@ -109,8 +109,18 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: '无效的数据负载，缺少 pages 属性' })
       }
 
+      // 安全快照备份：若当前已有旧数据且有打点记录，将其自动保存到 backup 槽位
+      try {
+        const oldRaw = await runUpstashCommand(kvUrl, kvToken, ['GET', redisKey])
+        if (oldRaw) {
+          await runUpstashCommand(kvUrl, kvToken, ['SET', `${redisKey}_backup`, oldRaw])
+        }
+      } catch (backupErr) {
+        console.warn('云端快照备份失败:', backupErr)
+      }
+
       const payload = {
-        version: 4,
+        version: 7,
         pages: body.pages,
         updatedAt: body.updatedAt || Date.now(),
         clientDeviceId: body.deviceId || 'unknown'

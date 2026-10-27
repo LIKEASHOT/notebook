@@ -14,6 +14,7 @@ export const useNotebookStore = defineStore('notebook', {
   state: () => ({
     pages: [],
     updatedAt: 0,
+    isDefault: true,
     searchTarget: null, // { pageIdx, slotIdx } — 统计页跳转
     initialized: false
   }),
@@ -23,7 +24,8 @@ export const useNotebookStore = defineStore('notebook', {
       if (this.initialized) return
       const data = loadStorage()
       this.pages = data.pages || JSON.parse(JSON.stringify(initialPages))
-      this.updatedAt = data.updatedAt || Date.now()
+      this.updatedAt = typeof data.updatedAt === 'number' ? data.updatedAt : 0
+      this.isDefault = data.isDefault === true
       this.initialized = true
 
       // 初始化云端同步引擎并尝试静默拉取
@@ -34,11 +36,13 @@ export const useNotebookStore = defineStore('notebook', {
     saveLocalOnly() {
       saveStorage({
         pages: this.pages,
-        updatedAt: this.updatedAt
+        updatedAt: this.updatedAt,
+        isDefault: this.isDefault
       })
     },
 
     save() {
+      this.isDefault = false // 一旦用户有任何操作，脱离出厂默认状态
       this.updatedAt = Date.now()
       this.saveLocalOnly()
       if (this.syncService) {
@@ -50,7 +54,8 @@ export const useNotebookStore = defineStore('notebook', {
     applyCloudData(cloudData) {
       if (cloudData && Array.isArray(cloudData.pages) && cloudData.pages.length > 0) {
         this.pages = cloudData.pages
-        this.updatedAt = cloudData.updatedAt || Date.now()
+        this.updatedAt = typeof cloudData.updatedAt === 'number' ? cloudData.updatedAt : Date.now()
+        this.isDefault = false
         this.saveLocalOnly()
       }
     },

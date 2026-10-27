@@ -161,10 +161,10 @@
         <div class="stats-backup-row">
           <!-- 导出按钮 -->
           <div class="stats-backup-btn" @click="exportData">
-            <span class="stats-backup-icon">📤</span>
+            <span class="stats-backup-icon">💾</span>
             <div class="stats-backup-btn-texts">
-              <span class="stats-backup-btn-title">导出全部单词数据</span>
-              <span class="stats-backup-btn-desc">复制为文本格式（如 data.txt），可在任何设备备份</span>
+              <span class="stats-backup-btn-title">导出为 txt 文件</span>
+              <span class="stats-backup-btn-desc">生成并下载本地 .txt 文件，无复制上限问题</span>
             </div>
           </div>
 
@@ -173,7 +173,7 @@
             <span class="stats-backup-icon">📥</span>
             <div class="stats-backup-btn-texts">
               <span class="stats-backup-btn-title">导入文本数据</span>
-              <span class="stats-backup-btn-desc">粘贴 data.txt 文本，一键解析并同步替换当前词库</span>
+              <span class="stats-backup-btn-desc">选择 txt 文件或粘贴文本，一键解析并替换当前词库</span>
             </div>
           </div>
         </div>
@@ -239,7 +239,7 @@
       <div v-if="showExportModal" class="nb-overlay" @click.self="showExportModal = false">
         <div class="export-modal" @click.stop>
           <span class="export-modal-title">导出成功 ✓</span>
-          <p class="export-modal-content">单词数据已复制到剪贴板！共 {{ store.totalWords }} 个单词，{{ store.pages.length }} 页。可粘贴到备忘录中。</p>
+          <p class="export-modal-content">已生成并下载 <b>{{ exportedFileName }}</b>！共 {{ store.totalWords }} 个单词，{{ store.pages.length }} 页。</p>
           <div class="export-modal-btn" @click="showExportModal = false"><span>好的</span></div>
         </div>
       </div>
@@ -254,9 +254,20 @@
             <span class="import-modal-close" @click="closeImportModal">✕</span>
           </div>
 
-          <p class="import-modal-tip">
-            请将导出的文本内容（例如 <code>data.txt</code>）完整粘贴在下方，系统会自动解析出页码与打点标记。
-          </p>
+          <!-- 文件选择器 -->
+          <div class="import-file-upload-wrap">
+            <input
+              type="file"
+              ref="fileInputRef"
+              accept=".txt"
+              style="display: none"
+              @change="handleFileUpload"
+            />
+            <button class="import-file-btn" @click="triggerFileInput">
+              <span>📂 选择本地 .txt 文件直接读取</span>
+            </button>
+            <span class="import-file-hint">或者直接在下方粘贴文本内容：</span>
+          </div>
 
           <textarea
             class="import-textarea"
@@ -549,6 +560,7 @@ function jumpToPage(pageIdx, slotIdx) {
 
 // ── 导出 ─────────────────────────────────────────────
 const showExportModal = ref(false)
+const exportedFileName = ref('')
 
 function exportData() {
   if (store.pages.length === 0) {
@@ -573,11 +585,27 @@ function exportData() {
     lines.push('')
   })
   const content = lines.join('\n')
-  navigator.clipboard.writeText(content).then(() => {
+
+  try {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const now = new Date()
+    const pad = (n) => String(n).padStart(2, '0')
+    const timeStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`
+    const fileName = `单词本数据_${timeStr}.txt`
+    exportedFileName.value = fileName
+    a.href = url
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
     showExportModal.value = true
-  }).catch(() => {
-    showToast('复制失败，请重试')
-  })
+  } catch (err) {
+    console.error('导出 txt 文件失败:', err)
+    showToast('下载失败，请重试')
+  }
 }
 
 // ── 云同步交互 ─────────────────────────────────────────
@@ -660,6 +688,23 @@ async function saveSyncSettings() {
 const showImportModal = ref(false)
 const importInputText = ref('')
 const importParseResult = ref(null)
+const fileInputRef = ref(null)
+
+function triggerFileInput() {
+  fileInputRef.value?.click()
+}
+
+function handleFileUpload(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (evt) => {
+    importInputText.value = evt.target.result || ''
+    handleParseImportText()
+  }
+  reader.readAsText(file, 'utf-8')
+  e.target.value = ''
+}
 
 function openImportModal() {
   importInputText.value = ''
@@ -1336,17 +1381,33 @@ const vLongPress = {
   cursor: pointer;
   padding: 4px;
 }
-.import-modal-tip {
-  font-size: 13px;
-  color: #6a5845;
-  margin: 0;
-  line-height: 1.5;
+.import-file-upload-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.import-modal-tip code {
+.import-file-btn {
+  background: #fbf8f0;
+  border: 1.5px dashed #b8a98a;
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: #7a5c10;
+  transition: all 0.15s;
+}
+.import-file-btn:active {
   background: #eee8dc;
-  padding: 2px 4px;
-  border-radius: 4px;
-  font-family: monospace;
+  border-color: #7a5c10;
+}
+.import-file-hint {
+  font-size: 12px;
+  color: #8b7355;
+  margin-top: 2px;
 }
 .import-textarea {
   width: 100%;
