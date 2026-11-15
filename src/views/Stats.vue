@@ -185,6 +185,15 @@
               <span class="stats-backup-btn-desc">扫描本机各版本历史缓存，一键找回遗失圆圈打点</span>
             </div>
           </div>
+
+          <!-- 清理空白页按钮 -->
+          <div class="stats-backup-btn" @click="handleCleanEmptyPages">
+            <span class="stats-backup-icon">🧹</span>
+            <div class="stats-backup-btn-texts">
+              <span class="stats-backup-btn-title">清理空白页面</span>
+              <span class="stats-backup-btn-desc">扫描并移除无单词的空白面，自动重排页码并同步云端</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -830,6 +839,16 @@ function applyHistoricalData(item) {
   showHistoryModal.value = false
   initExamList()
   showToast(`已成功恢复历史打点记录（共 ${item.totalCircles} 处标记），并同步至云端！`)
+}
+
+function handleCleanEmptyPages() {
+  const removed = store.cleanEmptyPages()
+  if (removed > 0) {
+    initExamList()
+    showToast(`成功清理了 ${removed} 个空白页面，后续页面已自动重排并同步云端！`)
+  } else {
+    showToast('检查完毕，当前没有发现空白页面')
+  }
 }
 
 // ── 导航 ─────────────────────────────────────────────

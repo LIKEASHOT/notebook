@@ -9,8 +9,8 @@ export function loadStorage() {
     const raw = localStorage.getItem(STORAGE_KEY_V7)
     if (raw) {
       const parsed = JSON.parse(raw)
-      // 如果数据有效且包含至少 38 面，正常加载
-      if (parsed && Array.isArray(parsed.pages) && parsed.pages.length >= 38) {
+      // 如果数据有效且包含页面，正常加载
+      if (parsed && Array.isArray(parsed.pages) && parsed.pages.length > 0) {
         return parsed
       }
     }
@@ -23,7 +23,7 @@ export function loadStorage() {
     const backupRaw = localStorage.getItem(BACKUP_KEY_V7)
     if (backupRaw) {
       const backupParsed = JSON.parse(backupRaw)
-      if (backupParsed && Array.isArray(backupParsed.pages) && backupParsed.pages.length >= 38) {
+      if (backupParsed && Array.isArray(backupParsed.pages) && backupParsed.pages.length > 0) {
         saveStorage(backupParsed)
         return backupParsed
       }

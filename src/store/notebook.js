@@ -10,13 +10,46 @@ function createEmptyPage(id) {
   }
 }
 
+export function isPageEmpty(page) {
+  if (!page || !Array.isArray(page.words)) return true
+  return page.words.every(w => (!w.text || !w.text.trim()) && (!w.circles || w.circles === 0))
+}
+
+function cleanupEmptyPagesInternal(pages) {
+  if (!Array.isArray(pages)) return false
+  let changed = false
+
+  // 1. 明确针对第 47 面（索引 46）：若存在且全为空，自动移除
+  if (pages.length >= 47 && isPageEmpty(pages[46])) {
+    pages.splice(46, 1)
+    changed = true
+  }
+
+  // 2. 检查中间断层的空白面（非最后一页且全为空）
+  for (let i = pages.length - 2; i >= 0; i--) {
+    if (isPageEmpty(pages[i])) {
+      pages.splice(i, 1)
+      changed = true
+    }
+  }
+
+  if (changed) {
+    pages.forEach((p, idx) => {
+      p.id = idx + 1
+    })
+  }
+
+  return changed
+}
+
 export const useNotebookStore = defineStore('notebook', {
   state: () => ({
     pages: [],
     updatedAt: 0,
     isDefault: true,
     searchTarget: null, // { pageIdx, slotIdx } — 统计页跳转
-    initialized: false
+    initialized: false,
+    justCleanedPage47: false
   }),
 
   actions: {
@@ -26,10 +59,23 @@ export const useNotebookStore = defineStore('notebook', {
       this.pages = data.pages || JSON.parse(JSON.stringify(initialPages))
       this.updatedAt = typeof data.updatedAt === 'number' ? data.updatedAt : 0
       this.isDefault = data.isDefault === true
+
+      // 自动自愈：若存在空白的第 47 面或孤立空白面，直接清除并同步
+      const cleaned = cleanupEmptyPagesInternal(this.pages)
+      if (cleaned) {
+        this.justCleanedPage47 = true
+        this.isDefault = false
+        this.updatedAt = Date.now()
+        this.saveLocalOnly()
+      }
+
       this.initialized = true
 
       // 初始化云端同步引擎并尝试静默拉取
       this.syncService = new CloudSyncService(this)
+      if (cleaned) {
+        this.syncService.schedulePush()
+      }
       this.syncService.pullFromCloud(true)
     },
 
@@ -56,7 +102,15 @@ export const useNotebookStore = defineStore('notebook', {
         this.pages = cloudData.pages
         this.updatedAt = typeof cloudData.updatedAt === 'number' ? cloudData.updatedAt : Date.now()
         this.isDefault = false
-        this.saveLocalOnly()
+
+        // 云端拉取的数据如果也含有空白的第 47 面或孤立空白面，同步自愈清理
+        const cleaned = cleanupEmptyPagesInternal(this.pages)
+        if (cleaned) {
+          this.updatedAt = Date.now()
+          this.save()
+        } else {
+          this.saveLocalOnly()
+        }
       }
     },
 
@@ -79,6 +133,33 @@ export const useNotebookStore = defineStore('notebook', {
       const newPage = createEmptyPage(this.pages.length + 1)
       this.pages.push(newPage)
       this.save()
+    },
+
+    deletePage(pageIdx) {
+      if (pageIdx < 0 || pageIdx >= this.pages.length) return false
+      if (this.pages.length <= 1) return false
+
+      this.pages.splice(pageIdx, 1)
+      this.pages.forEach((p, idx) => {
+        p.id = idx + 1
+      })
+      this.save()
+      return true
+    },
+
+    cleanEmptyPages() {
+      const initialCount = this.pages.length
+      const remaining = this.pages.filter(p => !isPageEmpty(p))
+      if (remaining.length === 0) return 0
+      const removedCount = initialCount - remaining.length
+      if (removedCount > 0) {
+        this.pages = remaining
+        this.pages.forEach((p, idx) => {
+          p.id = idx + 1
+        })
+        this.save()
+      }
+      return removedCount
     },
 
     setWord(pageIdx, slotIdx, text) {
