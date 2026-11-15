@@ -142,15 +142,6 @@
       <div class="nb-last-btn" @click="goToLastPage">
         <span class="nb-last-btn-text">末页</span>
       </div>
-      <div
-        class="nb-del-page-btn"
-        :class="{ 'nb-del-page-btn--empty': isCurrentPageEmpty }"
-        @click="openDeletePageModal"
-      >
-        <span class="nb-del-page-btn-text">
-          {{ isCurrentPageEmpty ? '🗑️ 删空白页' : '🗑️ 删本页' }}
-        </span>
-      </div>
       <div class="nb-add-btn" @click="addNewPage">
         <span class="nb-add-btn-text">＋ 新增一页</span>
       </div>
@@ -197,36 +188,6 @@
           <div class="nb-action-item" @click="doEdit">编辑单词</div>
           <div class="nb-action-item nb-action-item--danger" @click="doDelete">删除单词</div>
           <div class="nb-action-cancel" @click="closeActionSheet">取消</div>
-        </div>
-      </div>
-    </Teleport>
-
-    <!-- 删除整页确认弹窗 -->
-    <Teleport to="body">
-      <div v-if="showDeletePageModal" class="nb-overlay" @click.self="showDeletePageModal = false">
-        <div class="nb-modal" @click.stop>
-          <span class="nb-modal-title">
-            {{ isCurrentPageEmpty ? '删除空白页面' : '⚠️ 删除页面确认' }}
-          </span>
-          <p class="nb-modal-content">
-            <template v-if="isCurrentPageEmpty">
-              确定删除 <b>第 {{ currentPageNum }} 面</b>（当前为纯空白页）吗？<br />
-              删除后后续页面将自动向前顺延并同步云端。
-            </template>
-            <template v-else>
-              <b>第 {{ currentPageNum }} 面</b> 当前包含 <b>{{ currentWordsCount }}</b> 个单词。<br />
-              确定要删除整面吗？删除后内容无法恢复，后续页面将自动向前顺延。
-            </template>
-          </p>
-          <div class="nb-modal-actions">
-            <div class="nb-btn-cancel" @click="showDeletePageModal = false"><span>取消</span></div>
-            <div
-              :class="isCurrentPageEmpty ? 'nb-btn-confirm' : 'nb-btn-delete'"
-              @click="confirmDeletePage"
-            >
-              <span>确认删除</span>
-            </div>
-          </div>
         </div>
       </div>
     </Teleport>
@@ -279,28 +240,11 @@ let highlightTimer = null
 const showActionSheet = ref(false)
 const showEditModal = ref(false)
 const showDeleteModal = ref(false)
-const showDeletePageModal = ref(false)
 const editInput = ref(null)
 const editingSlot = ref(null)
 const editingValue = ref('')
 const deletingSlot = ref(null)
 const deletingWord = ref('')
-
-const currentPageNum = computed(() => {
-  return store.pages[currentPage.value]?.id || (currentPage.value + 1)
-})
-
-const isCurrentPageEmpty = computed(() => {
-  const p = store.pages[currentPage.value]
-  if (!p || !Array.isArray(p.words)) return true
-  return p.words.every(w => (!w.text || !w.text.trim()) && (!w.circles || w.circles === 0))
-})
-
-const currentWordsCount = computed(() => {
-  const p = store.pages[currentPage.value]
-  if (!p || !Array.isArray(p.words)) return 0
-  return p.words.filter(w => w.text && w.text.trim()).length
-})
 
 // ── 初始化 ──────────────────────────────────────────
 onMounted(() => {
@@ -485,28 +429,6 @@ function addNewPage() {
 }
 function goToLastPage() {
   navigateToPage(store.pages.length - 1)
-}
-function openDeletePageModal() {
-  if (store.pages.length <= 1) {
-    showToast('单词本至少需要保留一页')
-    return
-  }
-  showDeletePageModal.value = true
-}
-function confirmDeletePage() {
-  const pageIdxToDelete = currentPage.value
-  const pageNum = currentPageNum.value
-  const success = store.deletePage(pageIdxToDelete)
-  showDeletePageModal.value = false
-
-  if (success) {
-    const nextIdx = Math.max(0, Math.min(pageIdxToDelete, store.pages.length - 1))
-    currentPage.value = nextIdx
-    nextTick(() => {
-      scrollToPage(nextIdx, 'instant')
-    })
-    showToast(`已删除第 ${pageNum} 面，后续页码已自动顺延！`)
-  }
 }
 
 // ── 搜索 ─────────────────────────────────────────
@@ -957,29 +879,6 @@ function goToStats() {
 }
 .nb-last-btn:active { opacity: 0.8; }
 .nb-last-btn-text { color: #fff8e8; font-size: 14px; font-weight: 600; }
-.nb-del-page-btn {
-  background-color: #9d8265;
-  border-radius: 26px;
-  padding: 8px 16px;
-  cursor: pointer;
-  user-select: none;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.nb-del-page-btn:active { opacity: 0.8; }
-.nb-del-page-btn-text { color: #fff8e8; font-size: 14px; font-weight: 600; }
-.nb-del-page-btn--empty {
-  background-color: #b03a2e;
-  box-shadow: 0 2px 8px rgba(176, 58, 46, 0.35);
-  animation: pulseEmpty 2s infinite;
-}
-@keyframes pulseEmpty {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.03); }
-  100% { transform: scale(1); }
-}
 .nb-add-btn {
   background-color: #7a5c10;
   border-radius: 26px;
