@@ -26,23 +26,25 @@
     <tr>
       <td align="center" width="50%">
         <b>📖 复古纸张记词主界面</b><br/><br/>
-        <img src="docs/screenshots/01-home-notebook.jpg" width="320" alt="复古纸张主界面" />
+        <img src="docs/screenshots/01-home-notebook.jpg" width="320" alt="复古纸张主界面" /><br/>
+        <sub>拟物纸质触感 · 16 格排版 · 艾宾浩斯圆圈打点</sub>
       </td>
       <td align="center" width="50%">
         <b>🔍 内置双语词典与实时发音</b><br/><br/>
-        <img src="docs/screenshots/02-dict-modal.jpg" width="320" alt="内置双语词典" />
+        <img src="docs/screenshots/02-dict-modal.jpg" width="320" alt="内置双语词典" /><br/>
+        <sub>纯净音标显示 · 完整释义 · 真人朗读 · 一键加词</sub>
       </td>
     </tr>
     <tr>
       <td align="center" width="50%">
-        <b>📊 统计页与教学考核抽测</b><br/><br/>
-        <img src="docs/screenshots/03-stats-view.jpg" width="320" alt="选择统计与自测界面 (待添加截图)" /><br/>
-        <sub><i>(此处可放入统计页与 15 词盲测抽查截图)</i></sub>
+        <b>📊 统计面板与教学考核抽测</b><br/><br/>
+        <img src="docs/screenshots/03-stats-view.jpg" width="320" alt="选择统计与自测界面" /><br/>
+        <sub>遗忘高频排序 · 教学打点防跳动固化 · 15 词盲测抽查</sub>
       </td>
       <td align="center" width="50%">
-        <b>☁️ 多端云同步与历史数据打捞</b><br/><br/>
-        <img src="docs/screenshots/04-sync-and-tools.jpg" width="320" alt="多设备同步与打捞弹窗 (待添加截图)" /><br/>
-        <sub><i>(此处可放入云同步设置或历史版本打捞弹窗截图)</i></sub>
+        <b>☁️ 多端云同步与数据管理</b><br/><br/>
+        <img src="docs/screenshots/04-sync-and-tools.jpg" width="320" alt="多设备同步与数据管理工具箱" /><br/>
+        <sub>Vercel KV 实时同步 · txt 备份 · 历史打捞 · 空白页清理</sub>
       </td>
     </tr>
   </table>
