@@ -7,18 +7,39 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies & Build Outputs
 node_modules
 dist
 dist-ssr
-*.local
 
-# Editor directories and files
+# Environment Variables & Local Credentials (严防隐私与密钥泄露)
+.env
+.env.*
+!.env.example
+*.env
+*.local
+credentials.json
+token.json
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+
+# Editor & OS files
 .vscode/*
 !.vscode/extensions.json
 .idea
 .DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+*.tmp
+*.bak
